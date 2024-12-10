@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
-const API_URL = '/api'; // Use relative path for API requests
-const API_TIMEOUT = 10000; // 10 seconds
+const API_URL = 'http://192.168.7.130:3071'; // Updated to backend port 3071
 
 // API Response Types
 const OrganizationType = z.object({
@@ -56,7 +55,7 @@ async function handleResponse<T>(response: Response, schema: z.ZodType<T>): Prom
 // Helper function to create a request with timeout
 async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
 
   try {
     console.log('Making request to:', url, {
