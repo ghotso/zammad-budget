@@ -21,23 +21,23 @@ fi
 cd /app/backend
 
 echo "Setting up database directory..."
-if [ ! -f "/config/dev.db" ]; then
+if [ ! -f "/data/dev.db" ]; then
     echo "Initializing new database..."
-    touch /config/dev.db
+    touch /data/dev.db
 fi
 
 echo "Verifying Prisma schema..."
 if [ ! -f "/app/backend/prisma/schema.prisma" ]; then
-    echo "Error: Prisma schema not found!"
+    echo "Error: Prisma schema not found at /app/backend/prisma/schema.prisma!"
+    ls -la /app/backend/prisma/
     exit 1
 fi
 
 echo "Generating Prisma client..."
-export DATABASE_URL="file:/config/dev.db"
-npx prisma generate
+DATABASE_URL="file:/data/dev.db" npx prisma generate --schema=/app/backend/prisma/schema.prisma
 
 echo "Running database migrations..."
-npx prisma migrate deploy
+DATABASE_URL="file:/data/dev.db" npx prisma migrate deploy --schema=/app/backend/prisma/schema.prisma
 
 echo "Starting backend server..."
-exec node dist/index.js
+DATABASE_URL="file:/data/dev.db" exec node dist/index.js

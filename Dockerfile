@@ -62,18 +62,21 @@ RUN chown -R www-data:www-data /usr/share/nginx/html && \
 WORKDIR /app/backend
 
 # Copy backend files
-COPY --from=backend-builder /app/backend/package*.json ./
-COPY --from=backend-builder /app/backend/node_modules ./node_modules
 COPY --from=backend-builder /app/backend/dist ./dist
-COPY --from=backend-builder /app/backend/prisma ./prisma
+COPY --from=backend-builder /app/backend/node_modules ./node_modules
+COPY --from=backend-builder /app/backend/package*.json ./
 
-# Create config directory
-RUN mkdir -p /config && \
-    chown -R node:node /config
+# Copy Prisma files
+COPY --from=backend-builder /app/backend/prisma/schema.prisma ./prisma/
+COPY --from=backend-builder /app/backend/prisma/migrations ./prisma/migrations/
+
+# Create data directory
+RUN mkdir -p /data && \
+    chown -R node:node /data /app/backend/prisma
 
 # Environment variables with defaults
 ENV NODE_ENV=production \
-    DATABASE_URL="file:/config/dev.db" \
+    DATABASE_URL="file:/data/dev.db" \
     PORT=3000
 
 # Start script
@@ -81,7 +84,7 @@ COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 # Create volume mount points
-VOLUME ["/config"]
+VOLUME ["/data"]
 
 EXPOSE 80 3000
 ENTRYPOINT ["/docker-entrypoint.sh"]
