@@ -11,7 +11,7 @@ RUN set -ex && \
 COPY frontend/ ./
 ARG VITE_API_URL=http://localhost:3000
 RUN set -ex && \
-    npm run build
+    npm run build || (echo "Frontend build failed" && exit 1)
 
 # Build stage for backend
 FROM node:20.10 AS backend-builder
@@ -33,9 +33,7 @@ COPY backend/ ./
 # Generate Prisma client and build
 RUN set -ex && \
     npx prisma generate && \
-    mkdir -p dist && \
-    npm run build && \
-    ls -la dist/
+    npm run build || (echo "Backend build failed" && exit 1)
 
 # Production stage
 FROM node:20.10-slim AS runner
@@ -51,11 +49,9 @@ COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Set up backend
 WORKDIR /app/backend
-
-# Copy backend files
-COPY --from=backend-builder /app/backend/package*.json ./
-COPY --from=backend-builder /app/backend/node_modules ./node_modules
 COPY --from=backend-builder /app/backend/dist ./dist
+COPY --from=backend-builder /app/backend/node_modules ./node_modules
+COPY --from=backend-builder /app/backend/package.json ./
 COPY --from=backend-builder /app/backend/prisma ./prisma
 
 # Create volume for SQLite database

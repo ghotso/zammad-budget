@@ -1,4 +1,3 @@
-import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '../components/ui/card';
@@ -11,7 +10,7 @@ export function OrganizationDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const organizationId = parseInt(id || '0', 10);
+  const organizationId = id ? parseInt(id, 10) : 0;
 
   const { data: organizations, isLoading: isLoadingOrg } = useQuery({
     queryKey: ['organizations'],
@@ -19,19 +18,19 @@ export function OrganizationDetails() {
   });
 
   const { data: budgetHistory, isLoading: isLoadingHistory } = useQuery({
-    queryKey: ['budgetHistory', organizationId],
-    queryFn: () => getBudgetHistory(organizationId)
+    queryKey: ['budgetHistory', id],
+    queryFn: () => getBudgetHistory(id || '0')
   });
 
   const { data: monthlyTracking, isLoading: isLoadingTracking } = useQuery({
-    queryKey: ['monthlyTracking', organizationId],
-    queryFn: () => getMonthlyTracking(organizationId)
+    queryKey: ['monthlyTracking', id],
+    queryFn: () => getMonthlyTracking(id || '0')
   });
 
   const updateBudgetMutation = useMutation({
     mutationFn: async (params: { minutes: number; description: string }) => {
       const result = await updateOrganizationBudget(
-        organizationId,
+        id || '0',
         params.minutes,
         params.description
       );
@@ -39,7 +38,7 @@ export function OrganizationDetails() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organizations'] });
-      queryClient.invalidateQueries({ queryKey: ['budgetHistory', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['budgetHistory', id] });
     }
   });
 
@@ -73,7 +72,6 @@ export function OrganizationDetails() {
     );
   }
 
-  // Calculate remaining budget as negative if no budget is set
   const remainingBudget = organization.totalBudget === 0 
     ? -organization.trackedMinutes 
     : organization.totalBudget - organization.trackedMinutes;
