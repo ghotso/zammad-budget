@@ -1,24 +1,25 @@
 #!/bin/sh
 set -e
 
-# Switch back to root to start nginx
-su root -c "nginx"
-
-# Change to backend directory
-cd /app/backend
+# Start nginx
+nginx
 
 # Initialize database directory
 mkdir -p /data
 touch /data/dev.db
+chown node:node /data/dev.db
 chmod 644 /data/dev.db
 
-# Run database migrations
+# Change to backend directory
+cd /app/backend
+
+# Run database migrations as node user
 echo "Running Prisma generate..."
-npx prisma generate
+su-exec node npx prisma generate
 
 echo "Running Prisma migrations..."
-DATABASE_URL="file:/data/dev.db" npx prisma migrate deploy
+su-exec node DATABASE_URL="file:/data/dev.db" npx prisma migrate deploy
 
-# Start backend server
+# Start backend server as node user
 echo "Starting backend server..."
-exec node dist/index.js
+exec su-exec node node dist/index.js
