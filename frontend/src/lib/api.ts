@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const API_URL = 'http://192.168.7.130:3071'; // Updated to backend port 3071
+const API_URL = 'http://192.168.7.130:3071/api'; // Updated to include /api path
 
 // API Response Types
 const OrganizationType = z.object({
