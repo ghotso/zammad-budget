@@ -46,7 +46,7 @@ FROM node:20.10-slim AS runner
 
 # Install nginx and debugging tools
 RUN apt-get update && \
-    apt-get install -y nginx tree && \
+    apt-get install -y nginx tree curl && \
     mkdir -p /var/log/nginx /var/cache/nginx /run/nginx && \
     rm -rf /var/lib/apt/lists/*
 
@@ -70,16 +70,18 @@ COPY --from=backend-builder /app/backend/node_modules ./node_modules
 COPY --from=backend-builder /app/backend/dist ./dist
 COPY --from=backend-builder /app/backend/prisma ./prisma
 
-# Create data directory
+# Create data directory with proper permissions
 RUN mkdir -p /data && \
-    chown -R node:node /data /app/backend/prisma
+    chown -R node:node /data && \
+    chmod 755 /data
 
 # Environment variables with defaults
 ENV NODE_ENV=production \
     DATABASE_URL="file:/data/dev.db" \
     PORT=3000 \
     APP_PASSWORD=admin \
-    JWT_SECRET=zammad_budget_jwt_secret_2024
+    JWT_SECRET=zammad_budget_jwt_secret_2024 \
+    DEBUG_LVL=debug
 
 # Start script
 COPY docker-entrypoint.sh /docker-entrypoint.sh
@@ -87,6 +89,10 @@ RUN chmod +x /docker-entrypoint.sh
 
 # Create volume mount points
 VOLUME ["/data"]
+
+# Add healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
 
 EXPOSE 80 3000
 ENTRYPOINT ["/docker-entrypoint.sh"]
