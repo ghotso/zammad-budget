@@ -41,7 +41,8 @@ app.use('*', async (c, next) => {
     method: c.req.method,
     path: c.req.path,
     url: c.req.url,
-    headers: Object.fromEntries(c.req.headers.entries())
+    authorization: c.req.header('Authorization'),
+    cookie: c.req.header('Cookie')
   });
   await next();
   const end = Date.now();
