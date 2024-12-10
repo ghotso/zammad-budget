@@ -27,9 +27,14 @@ COPY backend/package*.json ./
 RUN set -ex && \
     npm install --legacy-peer-deps
 
-# Build backend
-COPY backend/ ./
+# Copy backend source and prisma schema
+COPY backend/prisma ./prisma
+COPY backend/src ./src
+COPY backend/tsconfig.json ./
+
+# Generate Prisma client and build
 RUN set -ex && \
+    npx prisma generate && \
     npm run build
 
 # Production stage

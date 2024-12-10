@@ -1,4 +1,4 @@
-import { PrismaClient, Organization, BudgetHistory } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { ZammadService } from './zammad.js';
 
 interface ZammadOrgInfo {
@@ -10,6 +10,22 @@ interface ZammadOrgInfo {
 interface MonthlyBudget {
   month: string;
   minutes: number;
+}
+
+interface BudgetHistory {
+  id: number;
+  organizationId: number;
+  minutes: number;
+  description: string | null;
+  createdAt: Date;
+}
+
+interface Organization {
+  id: number;
+  name: string;
+  totalBudget: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 interface OrganizationWithBudget extends Organization {
