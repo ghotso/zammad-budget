@@ -15,12 +15,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -31,7 +33,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.TOKEN }}
 
       - name: Extract Docker metadata
         id: meta
@@ -47,44 +49,50 @@ jobs:
             type=sha,format=long
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Generate version
-        id: version
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Update version
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          if [[ $GITHUB_REF == refs/tags/* ]]; then
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-          else
-            HASH=$(git rev-parse --short HEAD)
-            BRANCH=${GITHUB_REF#refs/heads/}
-            echo "VERSION=${BRANCH}-${HASH}" >> $GITHUB_ENV
-            # If on main branch, also tag as latest
-            if [[ "$BRANCH" == "main" ]]; then
-              echo "ADDITIONAL_TAG=latest" >> $GITHUB_ENV
-            fi
-          fi
+          # Generate version
+          VERSION=$(date +%Y.%m.%d)-$(git rev-parse --short HEAD)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          
+          # Update root package.json
+          npm version $VERSION --no-git-tag-version
+          
+          # Update frontend package.json
+          cd frontend
+          npm version $VERSION --no-git-tag-version
+          cd ..
+          
+          # Update backend package.json
+          cd backend
+          npm version $VERSION --no-git-tag-version
+          cd ..
+          
+          # Configure git
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          
+          # Commit changes
+          git add package.json frontend/package.json backend/package.json
+          git commit -m "chore: bump version to $VERSION [skip ci]"
+          git tag "v$VERSION"
+          git push && git push --tags
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}
-            ${{ env.ADDITIONAL_TAG == 'latest' && format('{0}/{1}:latest', env.REGISTRY, env.IMAGE_NAME) || '' }}
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Update version in package.json
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          VERSION=$(date +%Y.%m.%d)-$(git rev-parse --short HEAD)
-          jq ".version = \"$VERSION\"" package.json > package.json.tmp
-          mv package.json.tmp package.json
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
-          git add package.json
-          git commit -m "chore: bump version to $VERSION [skip ci]"
-          git push
 
       - name: Create Release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -96,4 +104,4 @@ jobs:
           prerelease: false
           generate_release_notes: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TOKEN: ${{ secrets.TOKEN }}
