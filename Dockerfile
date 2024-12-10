@@ -1,98 +1,50 @@
 # Build stage for frontend
-FROM node:20.10 AS frontend-builder
+FROM node:20-alpine as frontend-builder
 WORKDIR /app/frontend
-
-# Install dependencies
 COPY frontend/package*.json ./
-RUN set -ex && \
-    npm install --legacy-peer-deps
-
-# Build frontend with environment variables
+RUN npm install
 COPY frontend/ ./
-ENV VITE_API_URL=/api
-RUN set -ex && \
-    npm run build || (echo "Frontend build failed" && exit 1)
+RUN npm run build
 
 # Build stage for backend
-FROM node:20.10 AS backend-builder
+FROM node:20-alpine as backend-builder
 WORKDIR /app/backend
-
-# Install build dependencies
-RUN apt-get update && \
-    apt-get install -y python3 make g++ && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install dependencies
 COPY backend/package*.json ./
-RUN set -ex && \
-    npm install --legacy-peer-deps
-
-# Copy backend files
+RUN npm install
 COPY backend/ ./
+RUN npm run build
 
-# Update Prisma schema with absolute path
-RUN sed -i 's|"file:./dev.db"|"file:/data/dev.db"|' prisma/schema.prisma
+# Final stage
+FROM node:20-alpine
+WORKDIR /app
 
-# Generate Prisma client
-RUN set -ex && \
-    DATABASE_URL="file:/data/dev.db" npx prisma generate
+# Install nginx
+RUN apk add --no-cache nginx
 
-# Build backend
-RUN set -ex && \
-    npm run build || (echo "Backend build failed" && exit 1)
-
-# Production stage
-FROM node:20.10-slim AS runner
-
-# Install nginx and debugging tools
-RUN apt-get update && \
-    apt-get install -y nginx tree curl && \
-    mkdir -p /var/log/nginx /var/cache/nginx /run/nginx && \
-    rm -rf /var/lib/apt/lists/*
-
-# Remove default nginx config
-RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default
-
-# Copy frontend build and nginx config
+# Copy frontend build
 COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
-COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY frontend/nginx.conf /etc/nginx/http.d/default.conf
 
-# Set proper permissions
-RUN chown -R www-data:www-data /usr/share/nginx/html && \
-    chmod -R 755 /usr/share/nginx/html
+# Copy backend build
+COPY --from=backend-builder /app/backend/dist ./backend/dist
+COPY --from=backend-builder /app/backend/node_modules ./backend/node_modules
+COPY --from=backend-builder /app/backend/package.json ./backend/package.json
+COPY --from=backend-builder /app/backend/prisma ./backend/prisma
 
-# Set up backend
-WORKDIR /app/backend
+# Create data directory for SQLite
+RUN mkdir -p /data && chown -R node:node /data
 
-# Copy backend files
-COPY --from=backend-builder /app/backend/package*.json ./
-COPY --from=backend-builder /app/backend/node_modules ./node_modules
-COPY --from=backend-builder /app/backend/dist ./dist
-COPY --from=backend-builder /app/backend/prisma ./prisma
-
-# Create data directory with proper permissions
-RUN mkdir -p /data && \
-    chown -R node:node /data && \
-    chmod 755 /data
-
-# Environment variables with defaults
-ENV NODE_ENV=production \
-    DATABASE_URL="file:/data/dev.db" \
-    PORT=3000 \
-    APP_PASSWORD=admin \
-    JWT_SECRET=zammad_budget_jwt_secret_2024 \
-    DEBUG_LVL=debug
-
-# Start script
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+# Copy entrypoint script
+COPY docker-entrypoint.sh /
 RUN chmod +x /docker-entrypoint.sh
 
-# Create volume mount points
-VOLUME ["/data"]
+# Expose port
+EXPOSE 80
 
-# Add healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost/health || exit 1
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV DATABASE_URL=file:/data/dev.db
 
-EXPOSE 80 3000
+# Start services
 ENTRYPOINT ["/docker-entrypoint.sh"]

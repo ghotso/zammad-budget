@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// Use relative URL since nginx handles the proxying
+// Use relative URL since everything is in one container
 const API_URL = '/api';
 
 // API Response Types
