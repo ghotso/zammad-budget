@@ -1,26 +1,35 @@
 # Build stage for frontend
-FROM node:20-alpine AS frontend-builder
+FROM node:20.10-alpine AS frontend-builder
 WORKDIR /app/frontend
-# Copy package files first for better caching
+
+# Install dependencies
 COPY frontend/package*.json ./
-RUN npm ci
-# Copy frontend source
+RUN echo "Installing frontend dependencies..." && \
+    npm install --no-audit --no-fund
+
+# Build frontend
 COPY frontend/ ./
 ARG VITE_API_URL=http://localhost:3000
-RUN npm run build
+RUN echo "Building frontend..." && \
+    npm run build
 
 # Build stage for backend
-FROM node:20-alpine AS backend-builder
+FROM node:20.10-alpine AS backend-builder
 WORKDIR /app/backend
-# Copy package files first for better caching
+
+# Install dependencies
 COPY backend/package*.json ./
-RUN npm ci
-# Copy backend source
+RUN echo "Installing backend dependencies..." && \
+    npm install --no-audit --no-fund
+
+# Build backend
 COPY backend/ ./
-RUN npm run build
+RUN echo "Building backend..." && \
+    npm run build
 
 # Production stage
-FROM node:20-alpine AS runner
+FROM node:20.10-alpine AS runner
+
 # Install nginx
 RUN apk add --no-cache nginx
 
