@@ -1,6 +1,6 @@
 {
   "name": "zammad-budget",
-  "version": "2024.12.10-7aeb66d",
+  "version": "2024.12.10-eaece0a",
   "private": true,
   "workspaces": [
     "frontend",
