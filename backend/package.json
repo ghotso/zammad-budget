@@ -1,6 +1,6 @@
 {
   "name": "backend",
-  "version": "2024.12.10-570dbe7",
+  "version": "2024.12.10-903325b",
   "description": "Zammad Budget Manager Backend",
   "main": "dist/index.js",
   "type": "module",
