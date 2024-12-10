@@ -10,6 +10,7 @@ RUN set -ex && \
 # Build frontend
 COPY frontend/ ./
 ARG VITE_API_URL=http://localhost:3000
+ENV VITE_API_URL=${VITE_API_URL}
 RUN set -ex && \
     npm run build || (echo "Frontend build failed" && exit 1)
 
@@ -30,9 +31,12 @@ RUN set -ex && \
 # Copy backend files
 COPY backend/ ./
 
+# Update Prisma schema with absolute path
+RUN sed -i 's|"file:./dev.db"|"file:/data/dev.db"|' prisma/schema.prisma
+
 # Generate Prisma client
 RUN set -ex && \
-    npx prisma generate
+    DATABASE_URL="file:/data/dev.db" npx prisma generate
 
 # Build backend
 RUN set -ex && \
@@ -65,10 +69,7 @@ WORKDIR /app/backend
 COPY --from=backend-builder /app/backend/package*.json ./
 COPY --from=backend-builder /app/backend/node_modules ./node_modules
 COPY --from=backend-builder /app/backend/dist ./dist
-
-# Copy Prisma files
-COPY backend/prisma/schema.prisma ./prisma/
-COPY backend/prisma/migrations ./prisma/migrations/
+COPY --from=backend-builder /app/backend/prisma ./prisma
 
 # Create data directory
 RUN mkdir -p /data && \
@@ -77,7 +78,9 @@ RUN mkdir -p /data && \
 # Environment variables with defaults
 ENV NODE_ENV=production \
     DATABASE_URL="file:/data/dev.db" \
-    PORT=3000
+    PORT=3000 \
+    APP_PASSWORD=admin \
+    JWT_SECRET=zammad_budget_jwt_secret_2024
 
 # Start script
 COPY docker-entrypoint.sh /docker-entrypoint.sh
