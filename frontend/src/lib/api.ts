@@ -40,10 +40,16 @@ export type MonthlyTracking = z.infer<typeof MonthlyTrackingType>;
 async function handleResponse<T>(response: Response, schema: z.ZodType<T>): Promise<T> {
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);
+    console.error('API Error:', {
+      status: response.status,
+      statusText: response.statusText,
+      error: errorData
+    });
     throw new Error(errorData?.error || response.statusText || 'An error occurred');
   }
 
   const data = await response.json();
+  console.log('API Response:', data);
   return schema.parse(data);
 }
 
@@ -53,10 +59,15 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise
   const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
 
   try {
+    console.log('Making request to:', url, {
+      method: options.method,
+      headers: options.headers
+    });
     const response = await fetch(url, {
       ...options,
       signal: controller.signal,
     });
+    console.log('Response status:', response.status);
     return response;
   } finally {
     clearTimeout(timeoutId);
@@ -65,7 +76,8 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise
 
 export async function login(password: string): Promise<void> {
   try {
-    const response = await fetchWithTimeout(`${API_URL}/api/login`, {
+    console.log('Attempting login...');
+    const response = await fetchWithTimeout(`${API_URL}/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -76,17 +88,21 @@ export async function login(password: string): Promise<void> {
       credentials: 'include',
     });
 
+    console.log('Login response status:', response.status);
     const data = await handleResponse(response, LoginResponseType);
     
     if ('error' in data) {
+      console.error('Login error:', data.error);
       throw new Error(data.error);
     }
 
+    console.log('Login successful');
     // Store the token in localStorage for debugging purposes
     if (data.token && import.meta.env.DEV) {
       localStorage.setItem('debug_token', data.token);
     }
   } catch (error) {
+    console.error('Login error:', error);
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Login request timed out');
     }
@@ -96,7 +112,7 @@ export async function login(password: string): Promise<void> {
 
 export async function logout(): Promise<void> {
   try {
-    await fetchWithTimeout(`${API_URL}/api/logout`, {
+    await fetchWithTimeout(`${API_URL}/logout`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -113,7 +129,7 @@ export async function logout(): Promise<void> {
 }
 
 export async function getOrganizations(): Promise<Organization[]> {
-  const response = await fetchWithTimeout(`${API_URL}/api/organizations`, {
+  const response = await fetchWithTimeout(`${API_URL}/organizations`, {
     credentials: 'include',
     headers: {
       'Accept': 'application/json',
@@ -125,7 +141,7 @@ export async function getOrganizations(): Promise<Organization[]> {
 }
 
 export async function getOrganization(id: string): Promise<Organization> {
-  const response = await fetchWithTimeout(`${API_URL}/api/organizations/${id}`, {
+  const response = await fetchWithTimeout(`${API_URL}/organizations/${id}`, {
     credentials: 'include',
     headers: {
       'Accept': 'application/json',
@@ -137,7 +153,7 @@ export async function getOrganization(id: string): Promise<Organization> {
 }
 
 export async function getBudgetHistory(organizationId: string): Promise<BudgetHistory[]> {
-  const response = await fetchWithTimeout(`${API_URL}/api/organizations/${organizationId}/budget-history`, {
+  const response = await fetchWithTimeout(`${API_URL}/organizations/${organizationId}/budget-history`, {
     credentials: 'include',
     headers: {
       'Accept': 'application/json',
@@ -149,7 +165,7 @@ export async function getBudgetHistory(organizationId: string): Promise<BudgetHi
 }
 
 export async function getMonthlyTracking(organizationId: string): Promise<MonthlyTracking[]> {
-  const response = await fetchWithTimeout(`${API_URL}/api/organizations/${organizationId}/monthly-tracking`, {
+  const response = await fetchWithTimeout(`${API_URL}/organizations/${organizationId}/monthly-tracking`, {
     credentials: 'include',
     headers: {
       'Accept': 'application/json',
@@ -165,7 +181,7 @@ export async function updateOrganizationBudget(
   minutes: number,
   description: string
 ): Promise<Organization> {
-  const response = await fetchWithTimeout(`${API_URL}/api/organizations/${organizationId}/budget`, {
+  const response = await fetchWithTimeout(`${API_URL}/organizations/${organizationId}/budget`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

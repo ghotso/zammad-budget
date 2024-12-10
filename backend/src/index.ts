@@ -51,13 +51,20 @@ const APP_PASSWORD = process.env.APP_PASSWORD || 'admin';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Remove the /api prefix since nginx is already adding it
+// Login endpoint
 app.post('/login', async (c) => {
   try {
     debugLog.debug('Login attempt received');
-    const { password } = await c.req.json<{ password: string }>();
+    const body = await c.req.json();
+    debugLog.debug('Request body:', body);
+    const { password } = body;
 
-    debugLog.debug('Password received:', password === APP_PASSWORD ? 'matches' : 'does not match');
+    debugLog.debug('Comparing passwords:', {
+      received: password,
+      expected: APP_PASSWORD,
+      matches: password === APP_PASSWORD
+    });
+
     if (password !== APP_PASSWORD) {
       debugLog.warn('Invalid password attempt');
       return c.json({ error: 'Invalid password' }, 401);
@@ -114,7 +121,7 @@ app.get('/health', (c) => {
 });
 
 // Protected routes
-app.use('/*', auth);
+app.use('/organizations/*', auth);
 
 // Organizations endpoints
 app.get('/organizations', async (c) => {
