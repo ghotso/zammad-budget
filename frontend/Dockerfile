@@ -1,33 +1,29 @@
-# Build stage
-FROM node:20-alpine as builder
+# Build stage for frontend
+FROM node:20-alpine as frontend-builder
 
-WORKDIR /app
+# Set working directory
+WORKDIR /app/frontend
 
 # Copy package files
-COPY package*.json ./
+COPY frontend/package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm install
 
-# Copy source files
-COPY . .
-
-# Build the application
+# Copy source and build
+COPY --chown=node:node frontend/ ./
 RUN npm run build
 
 # Production stage
 FROM nginx:alpine
 
-# Install curl for healthcheck
-RUN apk --no-cache add curl
-
-# Copy built assets from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy built assets from frontend
+COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
 
 # Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expose port 80
+# Expose port
 EXPOSE 80
 
 # Start nginx
