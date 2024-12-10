@@ -1,34 +1,34 @@
-FROM node:20-alpine AS base
-WORKDIR /app
-
-# Frontend build
-FROM base AS frontend-builder
+# Build stage for frontend
+FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
+# Copy package files first for better caching
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm ci
+# Copy frontend source
 COPY frontend/ ./
 ARG VITE_API_URL=http://localhost:3000
 RUN npm run build
 
-# Backend build
-FROM base AS backend-builder
+# Build stage for backend
+FROM node:20-alpine AS backend-builder
 WORKDIR /app/backend
+# Copy package files first for better caching
 COPY backend/package*.json ./
-RUN npm install
+RUN npm ci
+# Copy backend source
 COPY backend/ ./
 RUN npm run build
 
-# Production image
-FROM base AS runner
-
+# Production stage
+FROM node:20-alpine AS runner
 # Install nginx
 RUN apk add --no-cache nginx
 
-# Copy frontend build
+# Copy frontend build and nginx config
 COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
 COPY frontend/nginx.conf /etc/nginx/http.d/default.conf
 
-# Copy backend build
+# Set up backend
 WORKDIR /app/backend
 COPY --from=backend-builder /app/backend/dist ./dist
 COPY --from=backend-builder /app/backend/node_modules ./node_modules
@@ -41,10 +41,7 @@ VOLUME /app/backend/prisma
 # Environment variables with defaults
 ENV NODE_ENV=production \
     DATABASE_URL=file:./prisma/dev.db \
-    JWT_SECRET=default_jwt_secret_change_me \
-    APP_PASSWORD=admin \
-    ZAMMAD_URL=https://your-zammad-instance.com \
-    ZAMMAD_TOKEN=your_token_here
+    PORT=3000
 
 # Start script
 COPY docker-entrypoint.sh /docker-entrypoint.sh
