@@ -1,10 +1,10 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
 echo "Starting Zammad Budget Manager"
 
 # Start nginx in background
-nginx
+service nginx start
 
 # Initialize database and start backend
 cd /app/backend

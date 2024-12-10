@@ -1,41 +1,48 @@
 # Build stage for frontend
-FROM node:20.10-alpine AS frontend-builder
+FROM node:20.10 AS frontend-builder
 WORKDIR /app/frontend
 
 # Install dependencies
 COPY frontend/package*.json ./
-RUN echo "Installing frontend dependencies..." && \
-    npm install --no-audit --no-fund
+RUN set -ex && \
+    npm install
 
 # Build frontend
 COPY frontend/ ./
 ARG VITE_API_URL=http://localhost:3000
-RUN echo "Building frontend..." && \
+RUN set -ex && \
     npm run build
 
 # Build stage for backend
-FROM node:20.10-alpine AS backend-builder
+FROM node:20.10 AS backend-builder
 WORKDIR /app/backend
+
+# Install build dependencies
+RUN apt-get update && \
+    apt-get install -y python3 make g++ && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install dependencies
 COPY backend/package*.json ./
-RUN echo "Installing backend dependencies..." && \
-    npm install --no-audit --no-fund
+RUN set -ex && \
+    npm install
 
 # Build backend
 COPY backend/ ./
-RUN echo "Building backend..." && \
+RUN set -ex && \
     npm run build
 
 # Production stage
-FROM node:20.10-alpine AS runner
+FROM node:20.10-slim AS runner
 
 # Install nginx
-RUN apk add --no-cache nginx
+RUN apt-get update && \
+    apt-get install -y nginx && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy frontend build and nginx config
 COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
-COPY frontend/nginx.conf /etc/nginx/http.d/default.conf
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Set up backend
 WORKDIR /app/backend
