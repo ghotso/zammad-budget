@@ -1,36 +1,37 @@
+import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '../components/ui/card';
 import { BudgetDialog } from '../components/BudgetDialog';
 import { formatMinutes } from '../lib/utils';
-import { getOrganizations, updateOrganizationBudget, getBudgetHistory, getMonthlyTracking } from '../lib/api';
+import { getOrganization, updateOrganizationBudget, getBudgetHistory, getMonthlyTracking, type Organization, type BudgetHistoryEntry, type MonthlyTracking } from '../lib/api';
 import { ArrowLeftIcon, WalletIcon, ClockIcon, AlertCircleIcon, PlusIcon, MinusIcon } from 'lucide-react';
 
 export function OrganizationDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const organizationId = id ? parseInt(id, 10) : 0;
+  const organizationId = id || '0';
 
-  const { data: organizations, isLoading: isLoadingOrg } = useQuery({
-    queryKey: ['organizations'],
-    queryFn: getOrganizations
+  const { data: organization, isLoading: isLoadingOrg } = useQuery({
+    queryKey: ['organizations', organizationId],
+    queryFn: () => getOrganization(organizationId)
   });
 
   const { data: budgetHistory, isLoading: isLoadingHistory } = useQuery({
-    queryKey: ['budgetHistory', id],
-    queryFn: () => getBudgetHistory(id || '0')
+    queryKey: ['budgetHistory', organizationId],
+    queryFn: () => getBudgetHistory(organizationId)
   });
 
   const { data: monthlyTracking, isLoading: isLoadingTracking } = useQuery({
-    queryKey: ['monthlyTracking', id],
-    queryFn: () => getMonthlyTracking(id || '0')
+    queryKey: ['monthlyTracking', organizationId],
+    queryFn: () => getMonthlyTracking(organizationId)
   });
 
   const updateBudgetMutation = useMutation({
     mutationFn: async (params: { minutes: number; description: string }) => {
       const result = await updateOrganizationBudget(
-        id || '0',
+        organizationId,
         params.minutes,
         params.description
       );
@@ -38,11 +39,9 @@ export function OrganizationDetails() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organizations'] });
-      queryClient.invalidateQueries({ queryKey: ['budgetHistory', id] });
+      queryClient.invalidateQueries({ queryKey: ['budgetHistory', organizationId] });
     }
   });
-
-  const organization = organizations?.find(org => org.id === organizationId);
 
   if (isLoadingOrg || isLoadingHistory || isLoadingTracking) {
     return (
@@ -72,6 +71,7 @@ export function OrganizationDetails() {
     );
   }
 
+  // Calculate remaining budget as negative if no budget is set
   const remainingBudget = organization.totalBudget === 0 
     ? -organization.trackedMinutes 
     : organization.totalBudget - organization.trackedMinutes;
@@ -152,7 +152,7 @@ export function OrganizationDetails() {
                   </div>
                 ) : null}
                 
-                {budgetHistory?.map((entry) => (
+                {budgetHistory?.map((entry: BudgetHistoryEntry) => (
                   <div
                     key={entry.id}
                     className="glass p-4 rounded-lg transition-all duration-300 hover:scale-[1.02]"
@@ -187,7 +187,7 @@ export function OrganizationDetails() {
             <div className="p-6">
               <h3 className="text-lg font-semibold mb-4">Monthly Tracked Time</h3>
               <div className="space-y-3">
-                {monthlyTracking?.map((month) => (
+                {monthlyTracking?.map((month: MonthlyTracking) => (
                   <div
                     key={month.month}
                     className="glass p-4 rounded-lg transition-all duration-300 hover:scale-[1.02]"

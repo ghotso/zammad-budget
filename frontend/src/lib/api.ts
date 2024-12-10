@@ -1,3 +1,26 @@
+export interface Organization {
+  id: number;
+  name: string;
+  totalBudget: number;
+  trackedMinutes: number;
+  createdAt: string;
+  updatedAt: string;
+  budgetHistory: BudgetHistoryEntry[];
+}
+
+export interface BudgetHistoryEntry {
+  id: number;
+  organizationId: number;
+  minutes: number;
+  description: string | null;
+  createdAt: string;
+}
+
+export interface MonthlyTracking {
+  month: string;
+  minutes: number;
+}
+
 const API_URL = '/api';
 
 export async function login(password: string): Promise<void> {
@@ -42,7 +65,7 @@ export async function checkAuth(): Promise<boolean> {
   }
 }
 
-export async function getOrganizations() {
+export async function getOrganizations(): Promise<Organization[]> {
   const response = await fetch(`${API_URL}/organizations`, {
     credentials: 'include',
   });
@@ -54,7 +77,7 @@ export async function getOrganizations() {
   return response.json();
 }
 
-export async function getOrganization(id: string) {
+export async function getOrganization(id: string): Promise<Organization> {
   const response = await fetch(`${API_URL}/organizations/${id}`, {
     credentials: 'include',
   });
@@ -66,7 +89,7 @@ export async function getOrganization(id: string) {
   return response.json();
 }
 
-export async function getBudgetHistory(organizationId: string) {
+export async function getBudgetHistory(organizationId: string): Promise<BudgetHistoryEntry[]> {
   const response = await fetch(`${API_URL}/organizations/${organizationId}/budget-history`, {
     credentials: 'include',
   });
@@ -78,7 +101,7 @@ export async function getBudgetHistory(organizationId: string) {
   return response.json();
 }
 
-export async function getMonthlyTracking(organizationId: string) {
+export async function getMonthlyTracking(organizationId: string): Promise<MonthlyTracking[]> {
   const response = await fetch(`${API_URL}/organizations/${organizationId}/monthly-tracking`, {
     credentials: 'include',
   });
@@ -90,7 +113,7 @@ export async function getMonthlyTracking(organizationId: string) {
   return response.json();
 }
 
-export async function addBudget(organizationId: string, minutes: number, description: string) {
+export async function addBudget(organizationId: string, minutes: number, description: string): Promise<Organization> {
   const response = await fetch(`${API_URL}/organizations/${organizationId}/budget`, {
     method: 'POST',
     headers: {
@@ -106,3 +129,6 @@ export async function addBudget(organizationId: string, minutes: number, descrip
 
   return response.json();
 }
+
+// Alias for addBudget to maintain compatibility
+export const updateOrganizationBudget = addBudget;
