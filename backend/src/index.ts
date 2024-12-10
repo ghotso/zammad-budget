@@ -12,7 +12,7 @@ import 'dotenv/config';
 
 // Debug levels
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-const LOG_LEVEL = (process.env.DEBUG_LVL || 'info') as LogLevel;
+const LOG_LEVEL = (process.env.DEBUG_LVL || 'debug') as LogLevel;
 
 const debugLog = {
   debug: (...args: any[]) => LOG_LEVEL === 'debug' && console.log('[DEBUG]', ...args),
@@ -34,6 +34,25 @@ const app = new Hono();
 const zammadService = new ZammadService();
 const budgetService = new BudgetService();
 
+// Request logging middleware
+app.use('*', async (c, next) => {
+  const start = Date.now();
+  debugLog.debug('Incoming request:', {
+    method: c.req.method,
+    path: c.req.path,
+    url: c.req.url,
+    headers: Object.fromEntries(c.req.headers.entries())
+  });
+  await next();
+  const end = Date.now();
+  debugLog.debug('Request completed:', {
+    method: c.req.method,
+    path: c.req.path,
+    status: c.res.status,
+    duration: `${end - start}ms`
+  });
+});
+
 // Middleware
 app.use('*', logger());
 app.use('*', prettyJSON());
@@ -52,7 +71,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Login endpoint
-app.post('/api/login', async (c) => {
+app.post('/login', async (c) => {
   try {
     debugLog.debug('Login attempt received');
     const body = await c.req.json();
@@ -94,7 +113,7 @@ app.post('/api/login', async (c) => {
 });
 
 // Logout endpoint
-app.post('/api/logout', (c) => {
+app.post('/logout', (c) => {
   debugLog.info('Logout request received');
   deleteCookie(c, 'auth', {
     httpOnly: true,
@@ -121,10 +140,10 @@ app.get('/health', (c) => {
 });
 
 // Protected routes
-app.use('/api/organizations/*', auth);
+app.use('/organizations/*', auth);
 
 // Organizations endpoints
-app.get('/api/organizations', async (c) => {
+app.get('/organizations', async (c) => {
   try {
     debugLog.debug('Fetching organizations');
     const orgs = await budgetService.getAllOrganizations();
@@ -135,7 +154,7 @@ app.get('/api/organizations', async (c) => {
   }
 });
 
-app.get('/api/organizations/:id', async (c) => {
+app.get('/organizations/:id', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
     debugLog.debug('Fetching organization details for ID:', id);
@@ -147,7 +166,7 @@ app.get('/api/organizations/:id', async (c) => {
   }
 });
 
-app.get('/api/organizations/:id/budget-history', async (c) => {
+app.get('/organizations/:id/budget-history', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
     debugLog.debug('Fetching budget history for organization ID:', id);
@@ -159,7 +178,7 @@ app.get('/api/organizations/:id/budget-history', async (c) => {
   }
 });
 
-app.get('/api/organizations/:id/monthly-tracking', async (c) => {
+app.get('/organizations/:id/monthly-tracking', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
     debugLog.debug('Fetching monthly tracking for organization ID:', id);
@@ -171,7 +190,7 @@ app.get('/api/organizations/:id/monthly-tracking', async (c) => {
   }
 });
 
-app.post('/api/organizations/:id/budget', async (c) => {
+app.post('/organizations/:id/budget', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
     const { minutes, description } = await c.req.json<{ minutes: number; description: string }>();
