@@ -31,6 +31,7 @@ debugLog.debug('JWT_SECRET is set:', !!process.env.JWT_SECRET);
 debugLog.debug('DATABASE_URL:', process.env.DATABASE_URL);
 
 const app = new Hono();
+const api = new Hono(); // Create a sub-app for /api routes
 const zammadService = new ZammadService();
 const budgetService = new BudgetService();
 
@@ -52,7 +53,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Login endpoint
-app.post('/login', async (c) => {
+api.post('/login', async (c) => {
   try {
     debugLog.debug('Login attempt received');
     const body = await c.req.json();
@@ -94,7 +95,7 @@ app.post('/login', async (c) => {
 });
 
 // Logout endpoint
-app.post('/logout', (c) => {
+api.post('/logout', (c) => {
   debugLog.info('Logout request received');
   deleteCookie(c, 'auth', {
     httpOnly: true,
@@ -121,10 +122,10 @@ app.get('/health', (c) => {
 });
 
 // Protected routes
-app.use('/organizations/*', auth);
+api.use('/organizations/*', auth);
 
 // Organizations endpoints
-app.get('/organizations', async (c) => {
+api.get('/organizations', async (c) => {
   try {
     debugLog.debug('Fetching organizations');
     const orgs = await budgetService.getAllOrganizations();
@@ -135,7 +136,7 @@ app.get('/organizations', async (c) => {
   }
 });
 
-app.get('/organizations/:id', async (c) => {
+api.get('/organizations/:id', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
     debugLog.debug('Fetching organization details for ID:', id);
@@ -147,7 +148,7 @@ app.get('/organizations/:id', async (c) => {
   }
 });
 
-app.get('/organizations/:id/budget-history', async (c) => {
+api.get('/organizations/:id/budget-history', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
     debugLog.debug('Fetching budget history for organization ID:', id);
@@ -159,7 +160,7 @@ app.get('/organizations/:id/budget-history', async (c) => {
   }
 });
 
-app.get('/organizations/:id/monthly-tracking', async (c) => {
+api.get('/organizations/:id/monthly-tracking', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
     debugLog.debug('Fetching monthly tracking for organization ID:', id);
@@ -171,7 +172,7 @@ app.get('/organizations/:id/monthly-tracking', async (c) => {
   }
 });
 
-app.post('/organizations/:id/budget', async (c) => {
+api.post('/organizations/:id/budget', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
     const { minutes, description } = await c.req.json<{ minutes: number; description: string }>();
@@ -196,6 +197,9 @@ app.post('/organizations/:id/budget', async (c) => {
     return c.json({ error: 'Failed to update budget' }, 500);
   }
 });
+
+// Mount the API routes under /api
+app.route('/api', api);
 
 const port = parseInt(process.env.PORT || '3000', 10);
 
