@@ -52,6 +52,6 @@ DATABASE_URL="file:/data/dev.db" \
 
 echo "Starting backend server with debug logging..."
 DATABASE_URL="file:/data/dev.db" \
-    DEBUG=1 \
-    NODE_ENV=development \
+    DEBUG_LVL=debug \
+    NODE_ENV=production \
     exec node dist/index.js

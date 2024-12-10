@@ -10,6 +10,26 @@ import { ZammadService } from './services/zammad.js';
 import { BudgetService } from './services/budget.js';
 import 'dotenv/config';
 
+// Debug levels
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+const LOG_LEVEL = (process.env.DEBUG_LVL || 'info') as LogLevel;
+
+const debugLog = {
+  debug: (...args: any[]) => LOG_LEVEL === 'debug' && console.log('[DEBUG]', ...args),
+  info: (...args: any[]) => ['debug', 'info'].includes(LOG_LEVEL) && console.log('[INFO]', ...args),
+  warn: (...args: any[]) => ['debug', 'info', 'warn'].includes(LOG_LEVEL) && console.warn('[WARN]', ...args),
+  error: (...args: any[]) => console.error('[ERROR]', ...args)
+};
+
+// Log environment variables
+debugLog.info('Environment Variables:');
+debugLog.info('NODE_ENV:', process.env.NODE_ENV);
+debugLog.info('PORT:', process.env.PORT);
+debugLog.info('ZAMMAD_URL:', process.env.ZAMMAD_URL);
+debugLog.debug('APP_PASSWORD is set:', !!process.env.APP_PASSWORD);
+debugLog.debug('JWT_SECRET is set:', !!process.env.JWT_SECRET);
+debugLog.debug('DATABASE_URL:', process.env.DATABASE_URL);
+
 const app = new Hono();
 const zammadService = new ZammadService();
 const budgetService = new BudgetService();
@@ -31,13 +51,15 @@ const APP_PASSWORD = process.env.APP_PASSWORD || 'admin';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Login endpoint
-app.post('/api/login', async (c) => {
+// Remove the /api prefix since nginx is already adding it
+app.post('/login', async (c) => {
   try {
+    debugLog.debug('Login attempt received');
     const { password } = await c.req.json<{ password: string }>();
 
+    debugLog.debug('Password received:', password === APP_PASSWORD ? 'matches' : 'does not match');
     if (password !== APP_PASSWORD) {
-      console.log('Invalid password attempt:', password);
+      debugLog.warn('Invalid password attempt');
       return c.json({ error: 'Invalid password' }, 401);
     }
 
@@ -56,16 +78,17 @@ app.post('/api/login', async (c) => {
     // Set Authorization header
     c.header('Authorization', `Bearer ${token}`);
 
-    console.log('Login successful');
+    debugLog.info('Login successful');
     return c.json({ token });
   } catch (error) {
-    console.error('Login error:', error);
+    debugLog.error('Login error:', error);
     return c.json({ error: 'Invalid request' }, 400);
   }
 });
 
 // Logout endpoint
-app.post('/api/logout', (c) => {
+app.post('/logout', (c) => {
+  debugLog.info('Logout request received');
   deleteCookie(c, 'auth', {
     httpOnly: true,
     secure: isProduction,
@@ -83,6 +106,7 @@ const auth = jwt({
 
 // Health check endpoint (unprotected)
 app.get('/health', (c) => {
+  debugLog.debug('Health check requested');
   return c.json({
     status: 'ok',
     timestamp: new Date().toISOString()
@@ -90,56 +114,62 @@ app.get('/health', (c) => {
 });
 
 // Protected routes
-app.use('/api/*', auth);
+app.use('/*', auth);
 
 // Organizations endpoints
-app.get('/api/organizations', async (c) => {
+app.get('/organizations', async (c) => {
   try {
+    debugLog.debug('Fetching organizations');
     const orgs = await budgetService.getAllOrganizations();
     return c.json(orgs);
   } catch (error) {
-    console.error('Error fetching organizations:', error);
+    debugLog.error('Error fetching organizations:', error);
     return c.json({ error: 'Failed to fetch organizations' }, 500);
   }
 });
 
-app.get('/api/organizations/:id', async (c) => {
+app.get('/organizations/:id', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
+    debugLog.debug('Fetching organization details for ID:', id);
     const details = await budgetService.getOrganizationDetails(id);
     return c.json(details);
   } catch (error) {
-    console.error('Error fetching organization details:', error);
+    debugLog.error('Error fetching organization details:', error);
     return c.json({ error: 'Failed to fetch organization details' }, 500);
   }
 });
 
-app.get('/api/organizations/:id/budget-history', async (c) => {
+app.get('/organizations/:id/budget-history', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
+    debugLog.debug('Fetching budget history for organization ID:', id);
     const org = await budgetService.getBudgetForOrganization(id);
     return c.json(org.budgetHistory || []);
   } catch (error) {
-    console.error('Error fetching budget history:', error);
+    debugLog.error('Error fetching budget history:', error);
     return c.json({ error: 'Failed to fetch budget history' }, 500);
   }
 });
 
-app.get('/api/organizations/:id/monthly-tracking', async (c) => {
+app.get('/organizations/:id/monthly-tracking', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
+    debugLog.debug('Fetching monthly tracking for organization ID:', id);
     const monthlyTracking = await budgetService.getMonthlyBudgetHistory(id);
     return c.json(monthlyTracking);
   } catch (error) {
-    console.error('Error fetching monthly tracking:', error);
+    debugLog.error('Error fetching monthly tracking:', error);
     return c.json({ error: 'Failed to fetch monthly tracking' }, 500);
   }
 });
 
-app.post('/api/organizations/:id/budget', async (c) => {
+app.post('/organizations/:id/budget', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
     const { minutes, description } = await c.req.json<{ minutes: number; description: string }>();
+
+    debugLog.debug('Adding budget history for organization ID:', id, { minutes, description });
 
     // Add budget history entry
     await budgetService.addBudgetHistory(id, minutes, description);
@@ -155,14 +185,14 @@ app.post('/api/organizations/:id/budget', async (c) => {
     const updatedOrg = await budgetService.getOrganizationDetails(id);
     return c.json(updatedOrg);
   } catch (error) {
-    console.error('Error updating budget:', error);
+    debugLog.error('Error updating budget:', error);
     return c.json({ error: 'Failed to update budget' }, 500);
   }
 });
 
 const port = parseInt(process.env.PORT || '3000', 10);
 
-console.log(`Server is starting on port ${port}...`);
+debugLog.info(`Server is starting on port ${port}...`);
 
 serve({
   fetch: app.fetch,
