@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-# Start nginx as root
+# Start nginx
 nginx
 
 # Initialize database directory
@@ -14,9 +14,6 @@ chmod 644 /data/dev.db
 cd /app/backend
 
 # Run database migrations as node user
-echo "Running Prisma generate..."
-su-exec node npx prisma generate
-
 echo "Running Prisma migrations..."
 su-exec node DATABASE_URL="file:/data/dev.db" npx prisma migrate deploy
 
