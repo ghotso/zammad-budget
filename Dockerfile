@@ -27,16 +27,14 @@ COPY backend/package*.json ./
 RUN set -ex && \
     npm install --legacy-peer-deps
 
-# Copy Prisma schema first
-COPY backend/prisma/schema.prisma ./prisma/
-COPY backend/prisma/migrations ./prisma/migrations/
+# Copy backend files
+COPY backend/ ./
 
 # Generate Prisma client
 RUN set -ex && \
     npx prisma generate
 
-# Copy remaining backend files and build
-COPY backend/ ./
+# Build backend
 RUN set -ex && \
     npm run build || (echo "Backend build failed" && exit 1)
 
@@ -63,20 +61,19 @@ RUN chown -R www-data:www-data /usr/share/nginx/html && \
 # Set up backend
 WORKDIR /app/backend
 
-# Copy backend files in the correct order
+# Copy backend files
 COPY --from=backend-builder /app/backend/package*.json ./
 COPY --from=backend-builder /app/backend/node_modules ./node_modules
 COPY --from=backend-builder /app/backend/dist ./dist
-COPY --from=backend-builder /app/backend/prisma/schema.prisma ./prisma/
-COPY --from=backend-builder /app/backend/prisma/migrations ./prisma/migrations/
+COPY --from=backend-builder /app/backend/prisma ./prisma
 
 # Create config directory
-RUN mkdir -p /config/prisma/data && \
+RUN mkdir -p /config && \
     chown -R node:node /config
 
 # Environment variables with defaults
 ENV NODE_ENV=production \
-    DATABASE_URL="file:/config/prisma/data/dev.db" \
+    DATABASE_URL="file:/config/dev.db" \
     PORT=3000
 
 # Start script

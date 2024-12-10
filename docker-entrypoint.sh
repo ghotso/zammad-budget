@@ -20,20 +20,24 @@ fi
 # Initialize database and start backend
 cd /app/backend
 
-echo "Setting up Prisma..."
-# Ensure the data directory exists
-mkdir -p /config/prisma/data
+echo "Setting up database directory..."
+if [ ! -f "/config/dev.db" ]; then
+    echo "Initializing new database..."
+    touch /config/dev.db
+fi
 
-# Create symlink if it doesn't exist
-if [ ! -L /app/backend/prisma/data ]; then
-    ln -s /config/prisma/data /app/backend/prisma/data
+echo "Verifying Prisma schema..."
+if [ ! -f "/app/backend/prisma/schema.prisma" ]; then
+    echo "Error: Prisma schema not found!"
+    exit 1
 fi
 
 echo "Generating Prisma client..."
-npx prisma generate --schema=/app/backend/prisma/schema.prisma
+export DATABASE_URL="file:/config/dev.db"
+npx prisma generate
 
 echo "Running database migrations..."
-DATABASE_URL="file:/config/prisma/data/dev.db" npx prisma migrate deploy --schema=/app/backend/prisma/schema.prisma
+npx prisma migrate deploy
 
 echo "Starting backend server..."
-DATABASE_URL="file:/config/prisma/data/dev.db" exec node dist/index.js
+exec node dist/index.js
