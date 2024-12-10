@@ -50,7 +50,8 @@ echo "Running database migrations..."
 DATABASE_URL="file:/data/dev.db" \
     npx prisma migrate deploy --schema=/app/backend/prisma/schema.prisma
 
-echo "Starting backend server with CORS enabled..."
+echo "Starting backend server with debug logging..."
 DATABASE_URL="file:/data/dev.db" \
-    CORS_ORIGIN="http://localhost:80" \
+    DEBUG=1 \
+    NODE_ENV=development \
     exec node dist/index.js

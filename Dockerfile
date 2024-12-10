@@ -7,10 +7,9 @@ COPY frontend/package*.json ./
 RUN set -ex && \
     npm install --legacy-peer-deps
 
-# Build frontend
+# Build frontend with environment variables
 COPY frontend/ ./
-ARG VITE_API_URL=http://localhost:3000
-ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_API_URL=/api
 RUN set -ex && \
     npm run build || (echo "Frontend build failed" && exit 1)
 
