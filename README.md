@@ -1,86 +1,54 @@
 # Zammad Budget Manager
 
-A budget management application for Zammad organizations that tracks and manages time budgets.
+A budget management application for Zammad organizations.
 
-## Repository Secrets Setup
+## Running with Docker
 
-Before deploying the Docker container, you need to set up the following secrets in your GitHub repository:
+The application is packaged as a single Docker container that runs both the frontend and backend services.
 
-1. Go to your repository settings
-2. Navigate to "Secrets and variables" → "Actions"
-3. Add the following secrets:
+### Port Mapping
 
-Required secrets for GitHub Actions:
-- `GITHUB_TOKEN` (automatically provided by GitHub)
+- Frontend: Host port 8071 -> Container port 80
+- Backend: Host port 3071 -> Container port 3000
 
-Required secrets for the application:
-- `ZAMMAD_URL`: Your Zammad instance URL
-- `ZAMMAD_TOKEN`: Your Zammad API token
-- `APP_PASSWORD`: Password for logging into the budget manager
-- `JWT_SECRET`: Secret key for JWT token generation (generate a secure random string)
+### Data Storage
 
-## Development Setup
+The application stores data in `/data` inside the container. This directory should be mounted to a persistent volume on the host, typically at `/mnt/user/appdata/zammad-budget`.
 
-1. Clone the repository
-2. Copy `.env.example` to `.env` in both frontend and backend directories
-3. Fill in the environment variables
-4. Install dependencies:
-   ```bash
-   cd frontend && npm install
-   cd ../backend && npm install
-   ```
-5. Start the development servers:
-   ```bash
-   # Terminal 1
-   cd frontend && npm run dev
-   
-   # Terminal 2
-   cd backend && npm run dev
-   ```
-
-## Docker Deployment
-
-The application can be deployed using Docker. The container includes both frontend and backend services.
-
-### Environment Variables
-
-When running the container, you need to provide these environment variables:
-
-Required:
-- `ZAMMAD_URL`: Your Zammad instance URL
-- `ZAMMAD_TOKEN`: Your Zammad API token
-- `APP_PASSWORD`: Password for logging into the budget manager
-- `JWT_SECRET`: Secret for JWT token generation
-
-Optional (with defaults):
-- `NODE_ENV`: Production environment (default: production)
-- `DATABASE_URL`: SQLite database path (default: file:./prisma/dev.db)
-
-### Ports
-
-The container exposes:
-- Port 80: Frontend web interface
-- Port 3000: Backend API
-
-### Volumes
-
-For data persistence:
-- `/app/backend/prisma`: SQLite database storage
-
-### Example Docker Run
+### Running the Container
 
 ```bash
 docker run -d \
-  -p 80:80 \
-  -p 3000:3000 \
-  -v /path/to/data:/app/backend/prisma \
+  -p 8071:80 \
+  -p 3071:3000 \
+  -v /mnt/user/appdata/zammad-budget:/data \
   -e ZAMMAD_URL=https://your-zammad-instance.com \
-  -e ZAMMAD_TOKEN=your_token \
-  -e APP_PASSWORD=your_password \
-  -e JWT_SECRET=your_secret \
-  ghcr.io/yourusername/zammad-budget:latest
+  -e ZAMMAD_TOKEN=your-token \
+  -e APP_PASSWORD=your-password \
+  -e JWT_SECRET=your-secret \
+  ghcr.io/your-username/zammad-budget:latest
 ```
 
-## License
+## Development
 
-MIT
+For development, you can use the provided Docker Compose configuration:
+
+```bash
+docker compose up -d
+```
+
+This will start the services with the same port mappings:
+- Frontend: http://localhost:8071
+- Backend: http://localhost:3071
+
+## Environment Variables
+
+- `ZAMMAD_URL`: Your Zammad instance URL
+- `ZAMMAD_TOKEN`: Your Zammad API token
+- `APP_PASSWORD`: Password for application login
+- `JWT_SECRET`: Secret for JWT token generation
+- `DEBUG_LVL`: Debug level (default: debug)
+
+## Data Persistence
+
+The application stores its SQLite database in `/data/dev.db` inside the container. This is mounted from the host's `/mnt/user/appdata/zammad-budget` directory to ensure data persistence.

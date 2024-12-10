@@ -10,9 +10,24 @@ RUN npm run build
 FROM node:20-alpine as backend-builder
 WORKDIR /app/backend
 COPY backend/package*.json ./
+
+# Create node user and set permissions
+RUN addgroup -g 1000 node && \
+    adduser -u 1000 -G node -s /bin/sh -D node && \
+    chown -R node:node .
+
+# Install dependencies as node user
+USER node
 RUN npm install
-COPY backend/ ./
+USER root
+
+COPY --chown=node:node backend/ ./
+
+# Build and generate prisma
+USER node
 RUN npm run build
+RUN npx prisma generate
+USER root
 
 # Final stage
 FROM node:20-alpine
@@ -27,17 +42,21 @@ RUN apk add --no-cache \
     su-exec \
     && rm -rf /var/cache/apk/*
 
+# Create node user with same UID/GID as build stage
+RUN addgroup -g 1000 node && \
+    adduser -u 1000 -G node -s /bin/sh -D node
+
 # Copy frontend build and nginx config
 COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
 COPY frontend/nginx.conf /etc/nginx/http.d/default.conf
 
-# Copy backend build
-COPY --from=backend-builder /app/backend/dist ./backend/dist
-COPY --from=backend-builder /app/backend/node_modules ./backend/node_modules
-COPY --from=backend-builder /app/backend/package.json ./backend/package.json
-COPY --from=backend-builder /app/backend/prisma ./backend/prisma
+# Copy backend with correct permissions
+COPY --from=backend-builder --chown=node:node /app/backend/dist ./backend/dist
+COPY --from=backend-builder --chown=node:node /app/backend/node_modules ./backend/node_modules
+COPY --from=backend-builder --chown=node:node /app/backend/package.json ./backend/package.json
+COPY --from=backend-builder --chown=node:node /app/backend/prisma ./backend/prisma
 
-# Create required directories
+# Create required directories with correct permissions
 RUN mkdir -p /data \
     && mkdir -p /run/nginx \
     && chown -R node:node /data \
@@ -51,7 +70,7 @@ RUN mkdir -p /data \
 COPY docker-entrypoint.sh /
 RUN chmod +x /docker-entrypoint.sh
 
-# Expose ports
+# Expose container ports (these will be mapped to 8071 and 3071 on host)
 EXPOSE 80 3000
 
 # Set environment variables

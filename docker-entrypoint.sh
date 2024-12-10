@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-# Start nginx
+# Start nginx as root
 nginx
 
 # Initialize database directory
