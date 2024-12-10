@@ -5,7 +5,7 @@ WORKDIR /app/frontend
 # Install dependencies
 COPY frontend/package*.json ./
 RUN set -ex && \
-    npm install
+    npm install --legacy-peer-deps
 
 # Build frontend
 COPY frontend/ ./
@@ -25,7 +25,7 @@ RUN apt-get update && \
 # Install dependencies
 COPY backend/package*.json ./
 RUN set -ex && \
-    npm install
+    npm install --legacy-peer-deps
 
 # Build backend
 COPY backend/ ./
