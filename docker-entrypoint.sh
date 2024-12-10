@@ -6,7 +6,7 @@ echo "Starting Zammad Budget Manager"
 # Debug: Show directory structure
 echo "Current directory structure:"
 tree /app/backend/prisma
-tree /config
+tree /data
 
 # Start nginx in background
 nginx -g 'daemon off;' &
@@ -26,10 +26,9 @@ fi
 cd /app/backend
 
 echo "Setting up database directory..."
-mkdir -p /config/prisma/data
-if [ ! -f "/config/prisma/data/dev.db" ]; then
+if [ ! -f "/data/dev.db" ]; then
     echo "Initializing new database..."
-    touch /config/prisma/data/dev.db
+    touch /data/dev.db
 fi
 
 echo "Verifying Prisma schema..."
@@ -44,13 +43,13 @@ echo "Checking Prisma schema content:"
 cat /app/backend/prisma/schema.prisma
 
 echo "Generating Prisma client..."
-DATABASE_URL="file:/config/prisma/data/dev.db" \
+DATABASE_URL="file:/data/dev.db" \
     npx prisma generate --schema=/app/backend/prisma/schema.prisma
 
 echo "Running database migrations..."
-DATABASE_URL="file:/config/prisma/data/dev.db" \
+DATABASE_URL="file:/data/dev.db" \
     npx prisma migrate deploy --schema=/app/backend/prisma/schema.prisma
 
 echo "Starting backend server..."
-DATABASE_URL="file:/config/prisma/data/dev.db" \
+DATABASE_URL="file:/data/dev.db" \
     exec node dist/index.js

@@ -27,16 +27,14 @@ COPY backend/package*.json ./
 RUN set -ex && \
     npm install --legacy-peer-deps
 
-# Copy Prisma schema first
-COPY backend/prisma/schema.prisma ./prisma/
-COPY backend/prisma/migrations ./prisma/migrations/
+# Copy backend files
+COPY backend/ ./
 
 # Generate Prisma client
 RUN set -ex && \
     npx prisma generate
 
-# Copy remaining backend files and build
-COPY backend/ ./
+# Build backend
 RUN set -ex && \
     npm run build || (echo "Backend build failed" && exit 1)
 
@@ -68,21 +66,17 @@ COPY --from=backend-builder /app/backend/package*.json ./
 COPY --from=backend-builder /app/backend/node_modules ./node_modules
 COPY --from=backend-builder /app/backend/dist ./dist
 
-# Create and setup prisma directory
-RUN mkdir -p /app/backend/prisma && \
-    chown -R node:node /app/backend/prisma
+# Copy Prisma files
+COPY backend/prisma/schema.prisma ./prisma/
+COPY backend/prisma/migrations ./prisma/migrations/
 
-# Copy Prisma files with explicit paths
-COPY --from=backend-builder /app/backend/prisma/schema.prisma /app/backend/prisma/
-COPY --from=backend-builder /app/backend/prisma/migrations /app/backend/prisma/migrations/
-
-# Create config directory
-RUN mkdir -p /config/prisma/data && \
-    chown -R node:node /config
+# Create data directory
+RUN mkdir -p /data && \
+    chown -R node:node /data /app/backend/prisma
 
 # Environment variables with defaults
 ENV NODE_ENV=production \
-    DATABASE_URL="file:/config/prisma/data/dev.db" \
+    DATABASE_URL="file:/data/dev.db" \
     PORT=3000
 
 # Start script
@@ -90,7 +84,7 @@ COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 # Create volume mount points
-VOLUME ["/config"]
+VOLUME ["/data"]
 
 EXPOSE 80 3000
 ENTRYPOINT ["/docker-entrypoint.sh"]
