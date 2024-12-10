@@ -1,5 +1,5 @@
 # Build stage for frontend
-FROM node:20-alpine as frontend-builder
+FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install
@@ -7,30 +7,23 @@ COPY frontend/ ./
 RUN npm run build
 
 # Build stage for backend
-FROM node:20-alpine as backend-builder
+FROM node:20-alpine AS backend-builder
 WORKDIR /app/backend
 COPY backend/package*.json ./
-
-# Create node user and set permissions
-RUN addgroup -g 1000 node && \
-    adduser -u 1000 -G node -s /bin/sh -D node && \
-    chown -R node:node .
 
 # Install dependencies as node user
 USER node
 RUN npm install
-USER root
 
+# Copy backend files with correct ownership
 COPY --chown=node:node backend/ ./
 
 # Build and generate prisma
-USER node
 RUN npm run build
 RUN npx prisma generate
-USER root
 
 # Final stage
-FROM node:20-alpine
+FROM node:20-alpine AS runner
 WORKDIR /app
 
 # Install required packages
@@ -41,10 +34,6 @@ RUN apk add --no-cache \
     curl \
     su-exec \
     && rm -rf /var/cache/apk/*
-
-# Create node user with same UID/GID as build stage
-RUN addgroup -g 1000 node && \
-    adduser -u 1000 -G node -s /bin/sh -D node
 
 # Copy frontend build and nginx config
 COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
@@ -73,14 +62,18 @@ RUN chmod +x /docker-entrypoint.sh
 # Expose container ports (these will be mapped to 8071 and 3071 on host)
 EXPOSE 80 3000
 
+# Build arguments for secrets
+ARG ZAMMAD_URL
+ARG APP_PASSWORD
+ARG JWT_SECRET
+ARG DEBUG_LVL
+
 # Set environment variables
 ENV NODE_ENV=production \
     PORT=3000 \
     DATABASE_URL=file:/data/dev.db \
-    ZAMMAD_URL=https://michaelguggenbichler.com \
-    APP_PASSWORD=admin \
-    JWT_SECRET=jklas9d823rjlaksdu08f9823r5 \
-    DEBUG_LVL=debug
+    ZAMMAD_URL=${ZAMMAD_URL:-https://michaelguggenbichler.com} \
+    DEBUG_LVL=${DEBUG_LVL:-debug}
 
 # Start services
 ENTRYPOINT ["/docker-entrypoint.sh"]

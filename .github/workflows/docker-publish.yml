@@ -82,15 +82,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
-
-      - name: Create Release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ env.VERSION }}
-          name: Release v${{ env.VERSION }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-        env:
-          TOKEN: ${{ secrets.TOKEN }}
+          build-args: |
+            ZAMMAD_URL=${{ secrets.ZAMMAD_URL }}
+            APP_PASSWORD=${{ secrets.APP_PASSWORD }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            DEBUG_LVL=debug
