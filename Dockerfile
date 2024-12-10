@@ -27,15 +27,15 @@ COPY backend/package*.json ./
 RUN set -ex && \
     npm install --legacy-peer-deps
 
-# Copy backend source and prisma schema
-COPY backend/prisma ./prisma
-COPY backend/src ./src
-COPY backend/tsconfig.json ./
+# Copy backend files
+COPY backend/ ./
 
 # Generate Prisma client and build
 RUN set -ex && \
     npx prisma generate && \
-    npm run build
+    mkdir -p dist && \
+    npm run build && \
+    ls -la dist/
 
 # Production stage
 FROM node:20.10-slim AS runner
@@ -51,9 +51,11 @@ COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Set up backend
 WORKDIR /app/backend
-COPY --from=backend-builder /app/backend/dist ./dist
+
+# Copy backend files
+COPY --from=backend-builder /app/backend/package*.json ./
 COPY --from=backend-builder /app/backend/node_modules ./node_modules
-COPY --from=backend-builder /app/backend/package.json ./
+COPY --from=backend-builder /app/backend/dist ./dist
 COPY --from=backend-builder /app/backend/prisma ./prisma
 
 # Create volume for SQLite database
