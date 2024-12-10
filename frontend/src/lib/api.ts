@@ -13,13 +13,33 @@ export async function login(password: string): Promise<void> {
   if (!response.ok) {
     throw new Error('Invalid password');
   }
+
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error('Login failed');
+  }
 }
 
 export async function logout(): Promise<void> {
-  await fetch(`${API_URL}/logout`, {
+  const response = await fetch(`${API_URL}/logout`, {
     method: 'POST',
     credentials: 'include',
   });
+
+  if (!response.ok) {
+    throw new Error('Logout failed');
+  }
+}
+
+export async function checkAuth(): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_URL}/organizations`, {
+      credentials: 'include',
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 export async function getOrganizations() {
