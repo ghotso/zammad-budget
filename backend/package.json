@@ -1,6 +1,6 @@
 {
   "name": "backend",
-  "version": "2024.12.10-6763c3e",
+  "version": "2024.12.10",
   "description": "Zammad Budget Manager Backend",
   "main": "dist/index.js",
   "type": "module",
@@ -18,14 +18,17 @@
   "license": "ISC",
   "dependencies": {
     "@hono/node-server": "^1.13.7",
-    "@prisma/client": "^5.7.0",
+    "@prisma/client": "^6.0.1",
     "dotenv": "^16.3.1",
     "hono": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.4",
-    "prisma": "^5.7.0",
+    "prisma": "^6.0.1",
     "tsx": "^4.6.2",
     "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

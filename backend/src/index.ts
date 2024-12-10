@@ -5,12 +5,16 @@ import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
 import { sign } from 'hono/jwt';
 import { jwt } from 'hono/jwt';
-import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { ZammadService } from './services/zammad.js';
 import { BudgetService } from './services/budget.js';
 import 'dotenv/config';
 
-const app = new Hono();
+// Define environment type
+type Env = {
+  JWT_SECRET: string;
+};
+
+const app = new Hono<{ Bindings: Env }>();
 const zammadService = new ZammadService();
 const budgetService = new BudgetService();
 
@@ -18,12 +22,8 @@ const budgetService = new BudgetService();
 app.use('*', logger());
 app.use('*', prettyJSON());
 app.use('*', cors({
-  origin: '*',
+  origin: ['http://localhost:5173', 'http://localhost:80', 'http://localhost'],
   credentials: true,
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposeHeaders: ['Content-Length', 'Content-Range'],
-  maxAge: 86400,
 }));
 
 // Authentication
@@ -31,44 +31,31 @@ const APP_PASSWORD = process.env.APP_PASSWORD || 'admin';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // Login endpoint
-app.post('/login', async (c) => {
+app.post('/api/login', async (c) => {
   const { password } = await c.req.json<{ password: string }>();
 
   if (password !== APP_PASSWORD) {
     return c.json({ error: 'Invalid password' }, 401);
   }
 
-  // Create JWT token
   const token = await sign({ authenticated: true }, JWT_SECRET);
   
-  // Set cookie for JWT
-  setCookie(c, 'auth', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'Lax',
-    path: '/',
-    maxAge: 60 * 60 * 24 // 24 hours
-  });
+  c.header('Set-Cookie', `auth=${token}; HttpOnly; Path=/; SameSite=Lax`);
 
   return c.json({ success: true });
 });
 
 // Logout endpoint
-app.post('/logout', (c) => {
-  deleteCookie(c, 'auth', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'Lax',
-    path: '/'
-  });
+app.post('/api/logout', (c) => {
+  c.header('Set-Cookie', 'auth=; HttpOnly; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
   return c.json({ success: true });
 });
 
 // Protected routes middleware
-const auth = jwt({
+app.use('/api/*', jwt({
   secret: JWT_SECRET,
   cookie: 'auth'
-});
+}));
 
 // Health check endpoint (unprotected)
 app.get('/health', (c) => {
@@ -79,10 +66,7 @@ app.get('/health', (c) => {
 });
 
 // Protected routes
-app.use('/organizations/*', auth);
-
-// Organizations endpoints
-app.get('/organizations', async (c) => {
+app.get('/api/organizations', async (c) => {
   try {
     const orgs = await budgetService.getAllOrganizations();
     return c.json(orgs);
@@ -92,7 +76,7 @@ app.get('/organizations', async (c) => {
   }
 });
 
-app.get('/organizations/:id', async (c) => {
+app.get('/api/organizations/:id', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
     const details = await budgetService.getOrganizationDetails(id);
@@ -103,7 +87,7 @@ app.get('/organizations/:id', async (c) => {
   }
 });
 
-app.get('/organizations/:id/budget-history', async (c) => {
+app.get('/api/organizations/:id/budget-history', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
     const org = await budgetService.getBudgetForOrganization(id);
@@ -114,7 +98,7 @@ app.get('/organizations/:id/budget-history', async (c) => {
   }
 });
 
-app.get('/organizations/:id/monthly-tracking', async (c) => {
+app.get('/api/organizations/:id/monthly-tracking', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
     const monthlyTracking = await budgetService.getMonthlyBudgetHistory(id);
@@ -125,7 +109,7 @@ app.get('/organizations/:id/monthly-tracking', async (c) => {
   }
 });
 
-app.post('/organizations/:id/budget', async (c) => {
+app.post('/api/organizations/:id/budget', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
     const { minutes, description } = await c.req.json<{ minutes: number; description: string }>();
