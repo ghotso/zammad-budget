@@ -18,7 +18,7 @@ const budgetService = new BudgetService();
 app.use('*', logger());
 app.use('*', prettyJSON());
 app.use('*', cors({
-  origin: ['http://localhost:5173', 'http://localhost:80', 'http://localhost'],
+  origin: ['http://localhost:5173', 'http://localhost:80', 'http://localhost', 'http://localhost:8071'],
   credentials: true,
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'Accept', 'Cookie', 'Cache-Control'],
@@ -29,6 +29,7 @@ app.use('*', cors({
 // Authentication
 const APP_PASSWORD = process.env.APP_PASSWORD || 'admin';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const isProduction = process.env.NODE_ENV === 'production';
 
 // Login endpoint
 app.post('/api/login', async (c) => {
@@ -36,25 +37,26 @@ app.post('/api/login', async (c) => {
     const { password } = await c.req.json<{ password: string }>();
 
     if (password !== APP_PASSWORD) {
+      console.log('Invalid password attempt:', password);
       return c.json({ error: 'Invalid password' }, 401);
     }
 
     // Create JWT token
     const token = await sign({ authenticated: true }, JWT_SECRET);
     
-    // Set cookie with proper settings for local development
+    // Set cookie with environment-aware settings
     setCookie(c, 'auth', token, {
       httpOnly: true,
-      secure: false, // Set to false for local development
-      sameSite: 'Lax',
+      secure: isProduction,
+      sameSite: isProduction ? 'Strict' : 'Lax',
       path: '/',
       maxAge: 60 * 60 * 24 // 24 hours
     });
 
-    // Set Authorization header as well
+    // Set Authorization header
     c.header('Authorization', `Bearer ${token}`);
 
-    // Return token in response
+    console.log('Login successful');
     return c.json({ token });
   } catch (error) {
     console.error('Login error:', error);
@@ -66,8 +68,8 @@ app.post('/api/login', async (c) => {
 app.post('/api/logout', (c) => {
   deleteCookie(c, 'auth', {
     httpOnly: true,
-    secure: false, // Set to false for local development
-    sameSite: 'Lax',
+    secure: isProduction,
+    sameSite: isProduction ? 'Strict' : 'Lax',
     path: '/'
   });
   return c.json({ success: true });
