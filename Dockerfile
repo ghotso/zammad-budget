@@ -43,11 +43,10 @@ RUN set -ex && \
 # Production stage
 FROM node:20.10-slim AS runner
 
-# Install nginx and create required directories
+# Install nginx
 RUN apt-get update && \
     apt-get install -y nginx && \
     mkdir -p /var/log/nginx /var/cache/nginx /run/nginx && \
-    chown -R www-data:www-data /var/log/nginx /var/cache/nginx /run/nginx && \
     rm -rf /var/lib/apt/lists/*
 
 # Remove default nginx config
@@ -71,21 +70,21 @@ COPY --from=backend-builder /app/backend/dist ./dist
 COPY --from=backend-builder /app/backend/prisma/schema.prisma ./prisma/
 COPY --from=backend-builder /app/backend/prisma/migrations ./prisma/migrations/
 
-# Create data directory and set permissions
-RUN mkdir -p /app/backend/prisma/data && \
-    chown -R node:node /app/backend/prisma
+# Create config directory
+RUN mkdir -p /config/prisma/data && \
+    chown -R node:node /config
 
 # Environment variables with defaults
 ENV NODE_ENV=production \
-    DATABASE_URL="file:/app/backend/prisma/data/dev.db" \
+    DATABASE_URL="file:/config/prisma/data/dev.db" \
     PORT=3000
 
-# Switch to non-root user
-USER node
-
 # Start script
-COPY --chown=node:node docker-entrypoint.sh /docker-entrypoint.sh
+COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
+
+# Create volume mount points
+VOLUME ["/config"]
 
 EXPOSE 80 3000
 ENTRYPOINT ["/docker-entrypoint.sh"]

@@ -3,8 +3,8 @@ set -e
 
 echo "Starting Zammad Budget Manager"
 
-# Switch to root to start nginx
-su root -c "nginx -g 'daemon off;' &"
+# Start nginx in background
+nginx -g 'daemon off;' &
 NGINX_PID=$!
 
 # Wait a moment to ensure nginx has started
@@ -22,13 +22,18 @@ cd /app/backend
 
 echo "Setting up Prisma..."
 # Ensure the data directory exists
-mkdir -p prisma/data
+mkdir -p /config/prisma/data
+
+# Create symlink if it doesn't exist
+if [ ! -L /app/backend/prisma/data ]; then
+    ln -s /config/prisma/data /app/backend/prisma/data
+fi
 
 echo "Generating Prisma client..."
-npx prisma generate --schema=./prisma/schema.prisma
+npx prisma generate --schema=/app/backend/prisma/schema.prisma
 
 echo "Running database migrations..."
-DATABASE_URL="file:/app/backend/prisma/data/dev.db" npx prisma migrate deploy --schema=./prisma/schema.prisma
+DATABASE_URL="file:/config/prisma/data/dev.db" npx prisma migrate deploy --schema=/app/backend/prisma/schema.prisma
 
 echo "Starting backend server..."
-exec node dist/index.js
+DATABASE_URL="file:/config/prisma/data/dev.db" exec node dist/index.js
