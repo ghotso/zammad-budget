@@ -52,7 +52,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Login endpoint
-app.post('/login', async (c) => {
+app.post('/api/login', async (c) => {
   try {
     debugLog.debug('Login attempt received');
     const body = await c.req.json();
@@ -94,7 +94,7 @@ app.post('/login', async (c) => {
 });
 
 // Logout endpoint
-app.post('/logout', (c) => {
+app.post('/api/logout', (c) => {
   debugLog.info('Logout request received');
   deleteCookie(c, 'auth', {
     httpOnly: true,
@@ -121,10 +121,10 @@ app.get('/health', (c) => {
 });
 
 // Protected routes
-app.use('/organizations/*', auth);
+app.use('/api/organizations/*', auth);
 
 // Organizations endpoints
-app.get('/organizations', async (c) => {
+app.get('/api/organizations', async (c) => {
   try {
     debugLog.debug('Fetching organizations');
     const orgs = await budgetService.getAllOrganizations();
@@ -135,7 +135,7 @@ app.get('/organizations', async (c) => {
   }
 });
 
-app.get('/organizations/:id', async (c) => {
+app.get('/api/organizations/:id', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
     debugLog.debug('Fetching organization details for ID:', id);
@@ -147,7 +147,7 @@ app.get('/organizations/:id', async (c) => {
   }
 });
 
-app.get('/organizations/:id/budget-history', async (c) => {
+app.get('/api/organizations/:id/budget-history', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
     debugLog.debug('Fetching budget history for organization ID:', id);
@@ -159,7 +159,7 @@ app.get('/organizations/:id/budget-history', async (c) => {
   }
 });
 
-app.get('/organizations/:id/monthly-tracking', async (c) => {
+app.get('/api/organizations/:id/monthly-tracking', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
     debugLog.debug('Fetching monthly tracking for organization ID:', id);
@@ -171,7 +171,7 @@ app.get('/organizations/:id/monthly-tracking', async (c) => {
   }
 });
 
-app.post('/organizations/:id/budget', async (c) => {
+app.post('/api/organizations/:id/budget', async (c) => {
   try {
     const id = parseInt(c.req.param('id'));
     const { minutes, description } = await c.req.json<{ minutes: number; description: string }>();
