@@ -38,14 +38,23 @@ RUN set -ex && \
 # Production stage
 FROM node:20.10-slim AS runner
 
-# Install nginx
+# Install nginx and create required directories
 RUN apt-get update && \
     apt-get install -y nginx && \
+    mkdir -p /var/log/nginx /var/cache/nginx /run/nginx && \
+    chown -R www-data:www-data /var/log/nginx /var/cache/nginx /run/nginx && \
     rm -rf /var/lib/apt/lists/*
+
+# Remove default nginx config
+RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default
 
 # Copy frontend build and nginx config
 COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+
+# Set proper permissions
+RUN chown -R www-data:www-data /usr/share/nginx/html && \
+    chmod -R 755 /usr/share/nginx/html
 
 # Set up backend
 WORKDIR /app/backend
