@@ -1,10 +1,6 @@
 name: Docker Build and Publish
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 concurrency:
@@ -58,9 +54,3 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             VITE_API_URL=http://localhost:3000
-            NODE_ENV=production
-            DATABASE_URL=file:./dev.db
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            APP_PASSWORD=${{ secrets.APP_PASSWORD }}
-            ZAMMAD_URL=${{ secrets.ZAMMAD_URL }}
-            ZAMMAD_TOKEN=${{ secrets.ZAMMAD_TOKEN }}
