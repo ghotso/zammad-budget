@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const API_URL = 'http://192.168.7.130:3071/api'; // Updated to include /api path
+const API_URL = 'http://192.168.7.130:3071'; // Removed /api since backend already handles it
 
 // API Response Types
 const OrganizationType = z.object({
@@ -76,7 +76,7 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise
 export async function login(password: string): Promise<void> {
   try {
     console.log('Attempting login...');
-    const response = await fetchWithTimeout(`${API_URL}/login`, {
+    const response = await fetchWithTimeout(`${API_URL}/api/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -111,7 +111,7 @@ export async function login(password: string): Promise<void> {
 
 export async function logout(): Promise<void> {
   try {
-    await fetchWithTimeout(`${API_URL}/logout`, {
+    await fetchWithTimeout(`${API_URL}/api/logout`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -128,7 +128,7 @@ export async function logout(): Promise<void> {
 }
 
 export async function getOrganizations(): Promise<Organization[]> {
-  const response = await fetchWithTimeout(`${API_URL}/organizations`, {
+  const response = await fetchWithTimeout(`${API_URL}/api/organizations`, {
     credentials: 'include',
     headers: {
       'Accept': 'application/json',
@@ -140,7 +140,7 @@ export async function getOrganizations(): Promise<Organization[]> {
 }
 
 export async function getOrganization(id: string): Promise<Organization> {
-  const response = await fetchWithTimeout(`${API_URL}/organizations/${id}`, {
+  const response = await fetchWithTimeout(`${API_URL}/api/organizations/${id}`, {
     credentials: 'include',
     headers: {
       'Accept': 'application/json',
@@ -152,7 +152,7 @@ export async function getOrganization(id: string): Promise<Organization> {
 }
 
 export async function getBudgetHistory(organizationId: string): Promise<BudgetHistory[]> {
-  const response = await fetchWithTimeout(`${API_URL}/organizations/${organizationId}/budget-history`, {
+  const response = await fetchWithTimeout(`${API_URL}/api/organizations/${organizationId}/budget-history`, {
     credentials: 'include',
     headers: {
       'Accept': 'application/json',
@@ -164,7 +164,7 @@ export async function getBudgetHistory(organizationId: string): Promise<BudgetHi
 }
 
 export async function getMonthlyTracking(organizationId: string): Promise<MonthlyTracking[]> {
-  const response = await fetchWithTimeout(`${API_URL}/organizations/${organizationId}/monthly-tracking`, {
+  const response = await fetchWithTimeout(`${API_URL}/api/organizations/${organizationId}/monthly-tracking`, {
     credentials: 'include',
     headers: {
       'Accept': 'application/json',
@@ -180,7 +180,7 @@ export async function updateOrganizationBudget(
   minutes: number,
   description: string
 ): Promise<Organization> {
-  const response = await fetchWithTimeout(`${API_URL}/organizations/${organizationId}/budget`, {
+  const response = await fetchWithTimeout(`${API_URL}/api/organizations/${organizationId}/budget`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
