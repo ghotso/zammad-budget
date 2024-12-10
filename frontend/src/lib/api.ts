@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = '/api'; // Use relative path for API requests
 const API_TIMEOUT = 10000; // 10 seconds
 
 // API Response Types
