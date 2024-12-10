@@ -16,7 +16,7 @@ cd /app/backend
 # Run database migrations as node user
 echo "Running Prisma migrations..."
 export DATABASE_URL="file:/data/dev.db"
-su-exec node sh -c 'npx prisma migrate deploy'
+su-exec node sh -c 'npx prisma generate && npx prisma migrate deploy'
 
 # Start backend server as node user
 echo "Starting backend server..."

@@ -24,8 +24,8 @@ RUN npm install
 
 # Copy source and build
 COPY --chown=node:node backend/ ./
-RUN npm run build \
-    && npx prisma generate
+RUN npm run build && \
+    npx prisma generate
 
 # Final stage
 FROM node:20-alpine AS runner
