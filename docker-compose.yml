@@ -1,52 +1,37 @@
 version: '3.8'
 
 services:
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8071:80"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - ZAMMAD_URL=${ZAMMAD_URL}
-      - ZAMMAD_TOKEN=${ZAMMAD_TOKEN}
-      - APP_PASSWORD=${APP_PASSWORD:-admin}
-      - JWT_SECRET=${JWT_SECRET:-your_jwt_secret_here_make_it_long_and_secure}
+      - APP_PASSWORD=admin
+      - JWT_SECRET=zammad_budget_jwt_secret_2024
+      - ZAMMAD_URL=https://michaelguggenbichler.com
+      - ZAMMAD_TOKEN=tKhj4Lr5xbXELe_reoKX3HZNw8gtU2ig7vBUTEsgWCSJPE_4dovYvH0ms7s5upT4
+      - DEBUG_LVL=debug
     volumes:
-      - ./backend/prisma/dev.db:/app/prisma/dev.db
-    restart: unless-stopped
-    platform: linux/amd64
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "80:80"
-    environment:
-      - VITE_API_URL=http://backend:3000
-    depends_on:
-      backend:
-        condition: service_healthy
-    restart: unless-stopped
-    platform: linux/amd64
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      - zammad-data:/data
+    networks:
+      - app-network
 
 networks:
-  default:
+  app-network:
     driver: bridge
 
 volumes:
-  db-data:
-    driver: local
+  zammad-data:
