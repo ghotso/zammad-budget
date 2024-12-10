@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM node:20-alpine as builder
 
 WORKDIR /app
 
@@ -9,13 +9,10 @@ COPY package*.json ./
 # Install dependencies
 RUN npm ci
 
-# Copy source code
+# Copy source files
 COPY . .
 
-# Generate Prisma client
-RUN npx prisma generate
-
-# Build the application
+# Generate Prisma client and build
 RUN npm run build
 
 # Production stage
@@ -23,31 +20,25 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Install curl for healthcheck
+RUN apk --no-cache add curl
+
 # Copy package files
 COPY package*.json ./
 
 # Install production dependencies only
-RUN npm ci --only=production
+RUN npm ci --production
 
-# Copy Prisma schema and migrations
-COPY prisma ./prisma/
-
-# Copy built application
+# Copy built files and prisma schema
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Generate Prisma client in production
-RUN npx prisma generate
-
-# Create volume for SQLite database
-VOLUME /app/prisma
-
-# Set environment variables
-ENV NODE_ENV=production
-ENV PORT=3000
+# Create data directory
+RUN mkdir -p /data
 
 # Expose port
-EXPOSE 3000
+EXPOSE 3071
 
 # Start the application
-CMD ["node", "dist/index.js"]
+CMD ["npm", "start"]

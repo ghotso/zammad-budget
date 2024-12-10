@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM node:20-alpine as builder
 
 WORKDIR /app
 
@@ -9,7 +9,7 @@ COPY package*.json ./
 # Install dependencies
 RUN npm ci
 
-# Copy source code
+# Copy source files
 COPY . .
 
 # Build the application
@@ -17,6 +17,9 @@ RUN npm run build
 
 # Production stage
 FROM nginx:alpine
+
+# Install curl for healthcheck
+RUN apk --no-cache add curl
 
 # Copy built assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
