@@ -6,6 +6,12 @@ on:
     tags: [ 'v*.*.*' ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      build_tag:
+        description: 'Custom tag for the Docker image (optional)'
+        required: false
+        default: 'latest'
 
 env:
   REGISTRY: ghcr.io
@@ -48,7 +54,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,format=long
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ github.event.inputs.build_tag || 'latest' }},enable={{is_default_branch}}
 
       - name: Build and push Docker image
         id: build-and-push
