@@ -30,25 +30,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
+      - name: Setup Docker buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Create scan results directory
-        run: mkdir -p scan-results
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
 
-      # Build test image with GitHub cache
       - name: Build test image
         uses: docker/build-push-action@v5
         with:
           context: .
           load: true
           tags: local-test:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          platforms: linux/amd64
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
           build-args: |
             NODE_ENV=production
             VITE_APP_VERSION=${{ github.ref_name }}
@@ -59,7 +59,7 @@ jobs:
         with:
           image-ref: 'local-test:latest'
           format: 'sarif'
-          output: 'scan-results/trivy-results.sarif'
+          output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
           scanners: 'vuln'
 
@@ -67,8 +67,13 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: 'scan-results/trivy-results.sarif'
+          sarif_file: 'trivy-results.sarif'
           category: 'trivy'
+
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
   publish:
     needs: build-and-test
@@ -86,11 +91,16 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@v3.3.0
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Setup Docker buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
 
       - name: Log into registry ${{ env.REGISTRY }}
         uses: docker/login-action@v3
@@ -134,13 +144,17 @@ jobs:
             org.opencontainers.image.licenses=MIT
             com.github.repo=ghotso/zammad-budget
             com.github.sha=${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
           build-args: |
             NODE_ENV=production
             VITE_APP_VERSION=${{ github.ref_name }}
             BUILD_TIMESTAMP=${{ github.event.repository.updated_at }}
+
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
       - name: Sign the published Docker image
         env:

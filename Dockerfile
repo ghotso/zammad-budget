@@ -36,14 +36,10 @@ RUN pnpm install --no-frozen-lockfile --prod=false
 # Copy source files
 COPY backend/ ./
 
-# Generate Prisma client
-RUN NODE_ENV=production pnpm exec prisma generate
-
-# Build TypeScript
-RUN pnpm run build
-
-# Clean up dev dependencies but keep Prisma
-RUN pnpm prune --prod
+# Generate Prisma client and build TypeScript
+RUN NODE_ENV=production pnpm exec prisma generate && \
+    pnpm run build && \
+    pnpm prune --prod
 
 # Production stage
 FROM base AS runner
@@ -57,10 +53,6 @@ COPY --from=backend-builder /app/backend/dist /app/backend/dist
 COPY --from=backend-builder /app/backend/node_modules /app/backend/node_modules
 COPY --from=backend-builder /app/backend/package.json /app/backend/
 COPY --from=backend-builder /app/backend/prisma /app/backend/prisma
-
-# Ensure Prisma client is copied
-COPY --from=backend-builder /app/backend/node_modules/.prisma /app/backend/node_modules/.prisma
-COPY --from=backend-builder /app/backend/node_modules/@prisma /app/backend/node_modules/@prisma
 
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/http.d/default.conf

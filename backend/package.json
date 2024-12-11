@@ -4,7 +4,7 @@
   "description": "Zammad Budget Manager Backend",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "start": "node dist/index.js",
     "dev": "prisma generate && prisma migrate deploy && tsx watch src/index.ts",
     "db:init": "prisma generate && prisma migrate deploy",
@@ -29,5 +29,8 @@
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }
