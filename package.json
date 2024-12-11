@@ -3,9 +3,17 @@
   "version": "2024.12.11",
   "description": "Budget tracking application for Zammad organizations",
   "private": true,
+  "packageManager": "pnpm@9.15.0",
   "scripts": {
-    "build": "echo 'Please use individual package scripts in frontend/ and backend/ directories'",
-    "test": "echo 'Please use individual package scripts in frontend/ and backend/ directories'"
+    "dev": "pnpm --parallel -r run dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "clean": "pnpm -r exec rm -rf dist node_modules",
+    "format": "pnpm -r run format",
+    "db:init": "pnpm --filter backend run db:init",
+    "db:reset": "pnpm --filter backend run db:reset",
+    "db:migrate": "pnpm --filter backend run db:migrate",
+    "db:studio": "pnpm --filter backend run db:studio"
   },
   "repository": {
     "type": "git",

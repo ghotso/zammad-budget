@@ -13,16 +13,17 @@ RUN corepack enable && corepack prepare pnpm@9.15.0 --activate && \
     nginx \
     netcat-openbsd
 
-# Install Prisma CLI globally
-RUN pnpm add -g prisma@5.22.0
-
 WORKDIR /app
 
 # Frontend build stage
 FROM base AS frontend-builder
 WORKDIR /app/frontend
-COPY frontend/package.json ./
-RUN pnpm install --no-frozen-lockfile --prod=false
+
+# Copy package files and install dependencies
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# Copy source files and build
 COPY frontend/ ./
 RUN pnpm run build && pnpm prune --prod
 
@@ -31,8 +32,8 @@ FROM base AS backend-builder
 WORKDIR /app/backend
 
 # Copy package files and install dependencies
-COPY backend/package.json ./
-RUN pnpm install --no-frozen-lockfile --prod=false
+COPY backend/package.json backend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 # Copy source files
 COPY backend/ ./
@@ -58,12 +59,12 @@ COPY --from=backend-builder /app/backend/prisma /app/backend/prisma
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/http.d/default.conf
 
-# Create data directory for SQLite
+# Create data directory for SQLite with proper permissions
 RUN mkdir -p /data && chown -R node:node /data
 
-# Copy entrypoint script
+# Copy entrypoint script and set permissions
 COPY docker-entrypoint.sh /app/
-RUN chmod +x /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh && chown node:node /app/docker-entrypoint.sh
 
 # Set environment variables
 ENV NODE_ENV=production \
