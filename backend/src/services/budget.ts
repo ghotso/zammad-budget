@@ -32,13 +32,56 @@ interface OrganizationWithBudget extends Organization {
   budgetHistory: BudgetHistory[];
 }
 
-const prisma = new PrismaClient({
-  log: ['error']
+// Singleton pattern for PrismaClient
+class PrismaClientSingleton {
+  private static instance: PrismaClient | undefined;
+
+  public static getInstance(): PrismaClient {
+    if (!PrismaClientSingleton.instance) {
+      PrismaClientSingleton.instance = new PrismaClient({
+        log: ['error'],
+        errorFormat: 'pretty'
+      });
+    }
+    return PrismaClientSingleton.instance;
+  }
+
+  public static async disconnect(): Promise<void> {
+    if (PrismaClientSingleton.instance) {
+      await PrismaClientSingleton.instance.$disconnect();
+      delete PrismaClientSingleton.instance;
+    }
+  }
+}
+
+// Handle cleanup on process termination
+process.on('beforeExit', async () => {
+  await PrismaClientSingleton.disconnect();
+});
+
+process.on('SIGINT', async () => {
+  await PrismaClientSingleton.disconnect();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  await PrismaClientSingleton.disconnect();
+  process.exit(0);
 });
 
 const zammadService = new ZammadService();
 
 export class BudgetService {
+  private prisma: PrismaClient;
+
+  constructor() {
+    this.prisma = PrismaClientSingleton.getInstance();
+  }
+
+  async cleanup(): Promise<void> {
+    await PrismaClientSingleton.disconnect();
+  }
+
   async getAllOrganizations() {
     try {
       const zammadOrgs = await zammadService.getOrganizationBudgetInfo();
@@ -63,7 +106,7 @@ export class BudgetService {
 
   async getBudgetForOrganization(organizationId: number): Promise<OrganizationWithBudget> {
     try {
-      const budget = await prisma.$queryRaw<(OrganizationWithBudget & { budgetHistory: string })[]>`
+      const budget = await this.prisma.$queryRaw<(OrganizationWithBudget & { budgetHistory: string })[]>`
         SELECT o.*, 
                (SELECT json_group_array(
                  json_object(
@@ -83,7 +126,7 @@ export class BudgetService {
       let org = budget[0];
       
       if (!org) {
-        await prisma.$executeRaw`
+        await this.prisma.$executeRaw`
           INSERT INTO organizations (id, name, totalBudget, createdAt, updatedAt)
           VALUES (${organizationId}, '', 0, datetime('now'), datetime('now'))
         `;
@@ -116,7 +159,7 @@ export class BudgetService {
     try {
       await this.getBudgetForOrganization(organizationId);
 
-      const result = await prisma.$queryRaw<BudgetHistory[]>`
+      const result = await this.prisma.$queryRaw<BudgetHistory[]>`
         INSERT INTO budget_history (organizationId, minutes, description, createdAt)
         VALUES (${organizationId}, ${minutes}, ${description}, datetime('now'))
         RETURNING *
@@ -136,7 +179,7 @@ export class BudgetService {
     try {
       await this.getBudgetForOrganization(organizationId);
 
-      const result = await prisma.$queryRaw<Organization[]>`
+      const result = await this.prisma.$queryRaw<Organization[]>`
         UPDATE organizations
         SET totalBudget = ${totalBudget},
             updatedAt = datetime('now')

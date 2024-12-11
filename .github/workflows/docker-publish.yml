@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       build_tag:
-        description: 'Custom tag for the Docker image (optional)'
+        description: 'Custom tag for the Docker image'
         required: false
         default: 'latest'
 
@@ -17,7 +17,6 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   NODE_VERSION: '20'
-  TEST_TAG: ghcr.io/${{ github.repository }}:test
 
 jobs:
   build-and-test:
@@ -31,24 +30,36 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Create scan results directory
+        run: mkdir -p scan-results
+
+      # Build test image with GitHub cache
       - name: Build test image
         uses: docker/build-push-action@v5
         with:
           context: .
           load: true
-          tags: ${{ env.TEST_TAG }}
+          tags: local-test:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          build-args: |
+            NODE_ENV=production
+            VITE_APP_VERSION=${{ github.ref_name }}
+            BUILD_TIMESTAMP=${{ github.event.repository.updated_at }}
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.TEST_TAG }}
+          image-ref: 'local-test:latest'
           format: 'sarif'
-          output: 'trivy-results.sarif'
+          output: 'scan-results/trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
           scanners: 'vuln'
 
@@ -56,7 +67,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: 'scan-results/trivy-results.sarif'
           category: 'trivy'
 
   publish:
@@ -75,6 +86,9 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@v3.3.0
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Setup Docker buildx
         uses: docker/setup-buildx-action@v3
 
@@ -85,18 +99,32 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.TOKEN }}
 
-      - name: Extract Docker metadata
+      - name: Generate Docker tags
         id: meta
-        uses: docker/metadata-action@v5
+        run: |
+          TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          
+          if [[ "${{ github.ref }}" == "refs/tags/"* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+            TAGS="$TAGS,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION}"
+          fi
+          
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            TAGS="$TAGS,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main"
+          fi
+          
+          if [[ -n "${{ github.event.inputs.build_tag }}" ]]; then
+            TAGS="$TAGS,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.build_tag }}"
+          fi
+          
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,format=long
-            type=raw,value=${{ github.event.inputs.build_tag || 'latest' }},enable={{is_default_branch}}
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
           labels: |
             org.opencontainers.image.title=Zammad Budget Manager
             org.opencontainers.image.description=Track and manage time budgets for Zammad organizations
@@ -106,15 +134,6 @@ jobs:
             org.opencontainers.image.licenses=MIT
             com.github.repo=ghotso/zammad-budget
             com.github.sha=${{ github.sha }}
-
-      - name: Build and push Docker image
-        id: build-and-push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
@@ -126,17 +145,11 @@ jobs:
       - name: Sign the published Docker image
         env:
           COSIGN_EXPERIMENTAL: "true"
-        run: echo "${{ steps.meta.outputs.tags }}" | xargs -I {} cosign sign --yes {}
-
-      - name: Update container description
-        uses: peter-evans/dockerhub-description@v3
-        with:
-          registry: ghcr.io
-          repository: ghotso/zammad-budget
-          username: ${{ github.actor }}
-          password: ${{ secrets.TOKEN }}
-          readme-filepath: ./README.md
-          short-description: "Zammad Budget Manager - Track and manage time budgets for Zammad organizations"
+        run: |
+          IFS=',' read -ra ADDR <<< "${{ steps.meta.outputs.tags }}"
+          for i in "${ADDR[@]}"; do
+            cosign sign --yes "$i"
+          done
 
   notify:
     needs: [build-and-test, publish]

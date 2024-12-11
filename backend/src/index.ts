@@ -9,6 +9,7 @@ import { ZammadService } from './services/zammad.js';
 import { BudgetService } from './services/budget.js';
 import 'dotenv/config';
 import { createHash, randomBytes } from 'crypto';
+import { PrismaClient } from '@prisma/client';
 
 // Define environment type
 type Env = {
@@ -339,7 +340,49 @@ console.log('Allowed origins:', CORS_ALLOWED_ORIGINS);
 console.log('JWT Secret length:', JWT_SECRET.length);
 console.log('Database URL:', process.env.DATABASE_URL);
 
-serve({
+// Start server with error handling
+const server = serve({
   fetch: app.fetch,
   port
+});
+
+// Handle graceful shutdown
+const shutdown = async () => {
+  console.log('Shutting down server...');
+  
+  try {
+    // Close server
+    if (server) {
+      await new Promise((resolve) => {
+        server.close(() => {
+          console.log('Server closed');
+          resolve(true);
+        });
+      });
+    }
+
+    // Cleanup Prisma
+    await budgetService.cleanup();
+    
+    console.log('Cleanup complete');
+    process.exit(0);
+  } catch (error) {
+    console.error('Error during shutdown:', error);
+    process.exit(1);
+  }
+};
+
+// Handle shutdown signals
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+
+// Handle uncaught errors
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception:', error);
+  shutdown();
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled rejection at:', promise, 'reason:', reason);
+  shutdown();
 });
