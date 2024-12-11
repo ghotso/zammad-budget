@@ -10,6 +10,8 @@ RUN npm install
 
 # Copy source and build
 COPY --chown=node:node frontend/ ./
+# Set production API URL for frontend build
+ENV VITE_API_URL=/
 RUN npm run build
 
 # Build stage for backend
@@ -37,6 +39,7 @@ RUN apk add --no-cache \
     openssl \
     openssl-dev \
     curl \
+    netcat-openbsd \
     su-exec \
     && rm -rf /var/cache/apk/*
 
@@ -64,14 +67,13 @@ COPY --from=backend-builder --chown=node:node /app/backend/prisma ./backend/pris
 COPY docker-entrypoint.sh /
 RUN chmod +x /docker-entrypoint.sh
 
-# Expose container ports (these will be mapped to 8071 and 3071 on host)
+# Expose container ports
 EXPOSE 80 3000
 
 # Set environment variables
 ENV NODE_ENV=production \
     PORT=3000 \
     DATABASE_URL=file:/data/dev.db \
-    ZAMMAD_URL=https://michaelguggenbichler.com \
     DEBUG_LVL=debug
 
 # Start services

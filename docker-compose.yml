@@ -14,6 +14,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - DATABASE_URL=file:/data/dev.db
       - DEBUG_LVL=debug
+      - VITE_API_URL=http://localhost:3071
     volumes:
       - /mnt/user/appdata/zammad-budget:/data
     ports:

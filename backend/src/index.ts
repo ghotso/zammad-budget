@@ -18,29 +18,64 @@ const app = new Hono<{ Bindings: Env }>();
 const zammadService = new ZammadService();
 const budgetService = new BudgetService();
 
-// Custom logging middleware
+// Enhanced logging middleware
 app.use('*', async (c, next) => {
+  const start = Date.now();
   console.log(`[${new Date().toISOString()}] ${c.req.method} ${c.req.url}`);
+  console.log('Headers:', JSON.stringify(c.req.headers, null, 2));
+  
   try {
     if (c.req.method === 'POST') {
-      const body = await c.req.json();
+      const clonedReq = c.req.raw.clone();
+      const body = await clonedReq.json();
       console.log('Request body:', body);
     }
   } catch (e) {
     // Ignore body parsing errors
   }
+
   await next();
-  console.log(`[${new Date().toISOString()}] Response status: ${c.res.status}`);
+
+  const end = Date.now();
+  console.log(`[${new Date().toISOString()}] Response status: ${c.res.status} - ${end - start}ms`);
 });
 
 // Middleware
 app.use('*', logger());
 app.use('*', prettyJSON());
+
+// CORS configuration
+const isDev = process.env.NODE_ENV !== 'production';
+const allowedOrigins = [
+  'http://localhost:5173',    // Vite dev server
+  'http://localhost:8071',    // Production port
+  'http://localhost:3071',    // Development API port
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:8071',
+  'http://127.0.0.1:3071'
+];
+
 app.use('*', cors({
-  origin: ['*'],  // Allow all origins in development
+  origin: (origin) => {
+    console.log('Request origin:', origin);
+    if (!origin) {
+      console.log('No origin header present');
+      return allowedOrigins[0];
+    }
+
+    if (isDev) {
+      // In development, be more permissive
+      return origin;
+    }
+
+    // In production, strictly check against allowed origins
+    const isAllowed = allowedOrigins.includes(origin);
+    console.log(`Origin ${origin} ${isAllowed ? 'is' : 'is not'} allowed`);
+    return isAllowed ? origin : allowedOrigins[0];
+  },
   credentials: true,
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  allowHeaders: ['Content-Type', 'Authorization', 'Accept', 'Cookie'],
   exposeHeaders: ['Set-Cookie'],
   maxAge: 86400,
 }));
@@ -64,8 +99,13 @@ app.post('/api/login', async (c) => {
     console.log('Password validated, generating token');
     const token = await sign({ authenticated: true }, JWT_SECRET);
     
-    console.log('Setting auth cookie');
-    c.header('Set-Cookie', `auth=${token}; HttpOnly; Path=/; SameSite=Lax`);
+    // Set cookie with appropriate settings for development/production
+    const cookieOptions = isDev
+      ? `auth=${token}; HttpOnly; Path=/; SameSite=Lax`
+      : `auth=${token}; HttpOnly; Path=/; SameSite=Strict; Secure`;
+
+    console.log('Setting cookie:', cookieOptions);
+    c.header('Set-Cookie', cookieOptions);
 
     console.log('Login successful');
     return c.json({ success: true });
@@ -175,6 +215,8 @@ app.post('/api/organizations/:id/budget', async (c) => {
 const port = parseInt(process.env.PORT || '3000', 10);
 
 console.log(`Server is starting on port ${port}...`);
+console.log('Environment:', process.env.NODE_ENV);
+console.log('Allowed origins:', allowedOrigins);
 
 serve({
   fetch: app.fetch,
