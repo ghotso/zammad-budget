@@ -24,5 +24,12 @@
   "bugs": {
     "url": "https://github.com/ghotso/zammad-budget/issues"
   },
-  "homepage": "https://github.com/ghotso/zammad-budget#readme"
+  "homepage": "https://github.com/ghotso/zammad-budget#readme",
+  "pnpm": {
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "react": "18"
+      }
+    }
+  }
 }

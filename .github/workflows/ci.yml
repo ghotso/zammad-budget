@@ -74,13 +74,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - name: Install backend dependencies
-        working-directory: ./backend
-        run: pnpm install --frozen-lockfile
-
-      - name: Install frontend dependencies
-        working-directory: ./frontend
-        run: pnpm install --frozen-lockfile
+      - name: Install dependencies and update lockfile
+        run: |
+          pnpm install --no-frozen-lockfile
+          pnpm install -r --no-frozen-lockfile
 
       - name: Build backend
         working-directory: ./backend
