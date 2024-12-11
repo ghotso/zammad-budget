@@ -18,12 +18,31 @@ const app = new Hono<{ Bindings: Env }>();
 const zammadService = new ZammadService();
 const budgetService = new BudgetService();
 
+// Custom logging middleware
+app.use('*', async (c, next) => {
+  console.log(`[${new Date().toISOString()}] ${c.req.method} ${c.req.url}`);
+  try {
+    if (c.req.method === 'POST') {
+      const body = await c.req.json();
+      console.log('Request body:', body);
+    }
+  } catch (e) {
+    // Ignore body parsing errors
+  }
+  await next();
+  console.log(`[${new Date().toISOString()}] Response status: ${c.res.status}`);
+});
+
 // Middleware
 app.use('*', logger());
 app.use('*', prettyJSON());
 app.use('*', cors({
-  origin: ['http://localhost:5173', 'http://localhost:80', 'http://localhost'],
+  origin: ['*'],  // Allow all origins in development
   credentials: true,
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  exposeHeaders: ['Set-Cookie'],
+  maxAge: 86400,
 }));
 
 // Authentication
@@ -32,21 +51,33 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // Login endpoint
 app.post('/api/login', async (c) => {
-  const { password } = await c.req.json<{ password: string }>();
+  console.log('Login attempt received');
+  try {
+    const { password } = await c.req.json<{ password: string }>();
+    console.log('Received password attempt');
 
-  if (password !== APP_PASSWORD) {
-    return c.json({ error: 'Invalid password' }, 401);
+    if (password !== APP_PASSWORD) {
+      console.log('Invalid password attempt');
+      return c.json({ error: 'Invalid password' }, 401);
+    }
+
+    console.log('Password validated, generating token');
+    const token = await sign({ authenticated: true }, JWT_SECRET);
+    
+    console.log('Setting auth cookie');
+    c.header('Set-Cookie', `auth=${token}; HttpOnly; Path=/; SameSite=Lax`);
+
+    console.log('Login successful');
+    return c.json({ success: true });
+  } catch (error) {
+    console.error('Login error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
   }
-
-  const token = await sign({ authenticated: true }, JWT_SECRET);
-  
-  c.header('Set-Cookie', `auth=${token}; HttpOnly; Path=/; SameSite=Lax`);
-
-  return c.json({ success: true });
 });
 
 // Logout endpoint
 app.post('/api/logout', (c) => {
+  console.log('Logout request received');
   c.header('Set-Cookie', 'auth=; HttpOnly; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
   return c.json({ success: true });
 });
@@ -67,8 +98,10 @@ app.get('/health', (c) => {
 
 // Protected routes
 app.get('/api/organizations', async (c) => {
+  console.log('Fetching organizations');
   try {
     const orgs = await budgetService.getAllOrganizations();
+    console.log('Organizations fetched:', orgs.length);
     return c.json(orgs);
   } catch (error) {
     console.error('Error fetching organizations:', error);
@@ -77,8 +110,9 @@ app.get('/api/organizations', async (c) => {
 });
 
 app.get('/api/organizations/:id', async (c) => {
+  const id = parseInt(c.req.param('id'));
+  console.log(`Fetching organization details for ID: ${id}`);
   try {
-    const id = parseInt(c.req.param('id'));
     const details = await budgetService.getOrganizationDetails(id);
     return c.json(details);
   } catch (error) {
@@ -88,8 +122,9 @@ app.get('/api/organizations/:id', async (c) => {
 });
 
 app.get('/api/organizations/:id/budget-history', async (c) => {
+  const id = parseInt(c.req.param('id'));
+  console.log(`Fetching budget history for organization ID: ${id}`);
   try {
-    const id = parseInt(c.req.param('id'));
     const org = await budgetService.getBudgetForOrganization(id);
     return c.json(org.budgetHistory || []);
   } catch (error) {
@@ -99,8 +134,9 @@ app.get('/api/organizations/:id/budget-history', async (c) => {
 });
 
 app.get('/api/organizations/:id/monthly-tracking', async (c) => {
+  const id = parseInt(c.req.param('id'));
+  console.log(`Fetching monthly tracking for organization ID: ${id}`);
   try {
-    const id = parseInt(c.req.param('id'));
     const monthlyTracking = await budgetService.getMonthlyBudgetHistory(id);
     return c.json(monthlyTracking);
   } catch (error) {
@@ -110,9 +146,11 @@ app.get('/api/organizations/:id/monthly-tracking', async (c) => {
 });
 
 app.post('/api/organizations/:id/budget', async (c) => {
+  const id = parseInt(c.req.param('id'));
+  console.log(`Updating budget for organization ID: ${id}`);
   try {
-    const id = parseInt(c.req.param('id'));
     const { minutes, description } = await c.req.json<{ minutes: number; description: string }>();
+    console.log('Budget update details:', { minutes, description });
 
     // Add budget history entry
     await budgetService.addBudgetHistory(id, minutes, description);
@@ -126,6 +164,7 @@ app.post('/api/organizations/:id/budget', async (c) => {
 
     // Return updated organization details
     const updatedOrg = await budgetService.getOrganizationDetails(id);
+    console.log('Budget updated successfully');
     return c.json(updatedOrg);
   } catch (error) {
     console.error('Error updating budget:', error);
