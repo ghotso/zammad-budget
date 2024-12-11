@@ -17,6 +17,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   NODE_VERSION: '20'
+  LOCAL_IMAGE_NAME: zammad-budget:test
 
 jobs:
   test-and-scan:
@@ -41,16 +42,29 @@ jobs:
           cd frontend && npm ci
           cd ../backend && npm ci
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build local image for scanning
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true
+          tags: ${{ env.LOCAL_IMAGE_NAME }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Create scan results directory
         run: mkdir -p scan-results
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '.'
+          image-ref: ${{ env.LOCAL_IMAGE_NAME }}
           format: 'sarif'
           output: 'scan-results/trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
+          scanners: vuln
 
       - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v3
