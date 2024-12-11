@@ -20,10 +20,10 @@ FROM base AS frontend-builder
 WORKDIR /app/frontend
 
 # Copy package files and install dependencies
-COPY frontend/package.json frontend/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY frontend/package.json ./
+RUN pnpm install --no-frozen-lockfile
 
-# Copy source files and build
+# Copy source files
 COPY frontend/ ./
 RUN pnpm run build && pnpm prune --prod
 
@@ -32,8 +32,8 @@ FROM base AS backend-builder
 WORKDIR /app/backend
 
 # Copy package files and install dependencies
-COPY backend/package.json backend/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY backend/package.json ./
+RUN pnpm install --no-frozen-lockfile
 
 # Copy source files
 COPY backend/ ./
