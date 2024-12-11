@@ -16,30 +16,21 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
-# Install dependencies stage
-FROM base AS deps
-COPY package.json pnpm-workspace.yaml ./
-COPY frontend/package.json frontend/
-COPY backend/package.json backend/
-
-# Install dependencies without frozen lockfile
-RUN pnpm install --no-frozen-lockfile
-
 # Frontend build stage
 FROM base AS frontend-builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/frontend/node_modules ./frontend/node_modules
-COPY . .
-RUN cd frontend && pnpm run build
+WORKDIR /app/frontend
+COPY frontend/package.json ./
+RUN pnpm install --no-frozen-lockfile
+COPY frontend/ ./
+RUN pnpm run build
 
 # Backend build stage
 FROM base AS backend-builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/backend/node_modules ./backend/node_modules
-COPY . .
-RUN cd backend && pnpm run build
+WORKDIR /app/backend
+COPY backend/package.json ./
+RUN pnpm install --no-frozen-lockfile
+COPY backend/ ./
+RUN pnpm run build
 
 # Production stage
 FROM base AS runner

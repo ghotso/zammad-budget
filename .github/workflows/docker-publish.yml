@@ -17,64 +17,51 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   NODE_VERSION: '20'
-  LOCAL_IMAGE_NAME: zammad-budget:test
+  TEST_TAG: ghcr.io/${{ github.repository }}:test
 
 jobs:
-  test-and-scan:
+  build-and-test:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       security-events: write
+      packages: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: |
-          npm ci
-          cd frontend && npm ci
-          cd ../backend && npm ci
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build local image for scanning
+      - name: Build test image
         uses: docker/build-push-action@v5
         with:
           context: .
           load: true
-          tags: ${{ env.LOCAL_IMAGE_NAME }}
+          tags: ${{ env.TEST_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Create scan results directory
-        run: mkdir -p scan-results
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.LOCAL_IMAGE_NAME }}
+          image-ref: ${{ env.TEST_TAG }}
           format: 'sarif'
-          output: 'scan-results/trivy-results.sarif'
+          output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
-          scanners: vuln
+          scanners: 'vuln'
 
       - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: 'scan-results/trivy-results.sarif'
+          sarif_file: 'trivy-results.sarif'
           category: 'trivy'
 
-  build-and-push:
-    needs: test-and-scan
+  publish:
+    needs: build-and-test
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -92,7 +79,6 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log into registry ${{ env.REGISTRY }}
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -121,15 +107,12 @@ jobs:
             com.github.repo=ghotso/zammad-budget
             com.github.sha=${{ github.sha }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -139,17 +122,13 @@ jobs:
             NODE_ENV=production
             VITE_APP_VERSION=${{ github.ref_name }}
             BUILD_TIMESTAMP=${{ github.event.repository.updated_at }}
-            BUILDPLATFORM=${{ runner.arch }}
-            TARGETPLATFORM=${{ runner.arch }}
 
       - name: Sign the published Docker image
-        if: ${{ github.event_name != 'pull_request' }}
         env:
           COSIGN_EXPERIMENTAL: "true"
         run: echo "${{ steps.meta.outputs.tags }}" | xargs -I {} cosign sign --yes {}
 
       - name: Update container description
-        if: github.event_name != 'pull_request'
         uses: peter-evans/dockerhub-description@v3
         with:
           registry: ghcr.io
@@ -160,7 +139,7 @@ jobs:
           short-description: "Zammad Budget Manager - Track and manage time budgets for Zammad organizations"
 
   notify:
-    needs: build-and-push
+    needs: [build-and-test, publish]
     if: always()
     runs-on: ubuntu-24.04
     steps:
@@ -172,5 +151,5 @@ jobs:
           gistID: ${{ secrets.GIST_ID }}
           filename: zammad-budget-build.json
           label: build
-          message: ${{ needs.build-and-push.result == 'success' && 'passing' || 'failing' }}
-          color: ${{ needs.build-and-push.result == 'success' && 'success' || 'critical' }}
+          message: ${{ needs.publish.result == 'success' && 'passing' || 'failing' }}
+          color: ${{ needs.publish.result == 'success' && 'success' || 'critical' }}
