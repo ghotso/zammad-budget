@@ -58,7 +58,7 @@ echo "Initializing Prisma..."
 
 # Generate Prisma client
 echo "Generating Prisma client..."
-if ! NODE_ENV=production pnpm exec prisma generate; then
+if ! pnpm exec prisma generate; then
     echo "Failed to generate Prisma client"
     exit 1
 fi
@@ -66,13 +66,13 @@ fi
 # Initialize database if it doesn't exist
 if [ ! -f "/data/dev.db" ]; then
     echo "Initializing database..."
-    if ! NODE_ENV=production pnpm exec prisma migrate deploy; then
+    if ! pnpm exec prisma migrate deploy; then
         echo "Failed to deploy migrations"
         exit 1
     fi
 else
     echo "Database exists, checking for migrations..."
-    if ! NODE_ENV=production pnpm exec prisma migrate deploy; then
+    if ! pnpm exec prisma migrate deploy; then
         echo "Failed to deploy migrations"
         exit 1
     fi
