@@ -1,28 +1,43 @@
 version: '3.8'
 
 services:
-  app:
+  frontend:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile
+    ports:
+      - "8071:80"
+    environment:
+      - NODE_ENV=production
+      - VITE_API_URL=/api
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3071:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - DATABASE_URL=file:/data/dev.db
+      - JWT_SECRET=${JWT_SECRET}
+      - APP_PASSWORD=${APP_PASSWORD}
       - ZAMMAD_URL=${ZAMMAD_URL}
       - ZAMMAD_TOKEN=${ZAMMAD_TOKEN}
-      - APP_PASSWORD=${APP_PASSWORD}
-      - JWT_SECRET=${JWT_SECRET}
-      - DATABASE_URL=file:/data/dev.db
-      - DEBUG_LVL=debug
-      - VITE_API_URL=http://localhost:3071
     volumes:
-      - /mnt/user/appdata/zammad-budget:/data
-    ports:
-      - "8071:80"
-      - "3071:3000"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      - ./data:/data
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  data:
+    driver: local

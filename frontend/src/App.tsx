@@ -5,12 +5,11 @@ import { LoginPage } from './pages/LoginPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { Header } from './components/Header';
 import { useAuth } from './lib/hooks/useAuth';
+import { AuthProvider } from './lib/context/AuthProvider';
+import { SettingsProvider } from './lib/settings';
 
-function App() {
+function AppContent() {
   const { isAuthenticated } = useAuth();
-
-  // The loading state is now handled by the AuthProvider component
-  // which shows a loading spinner while checking auth status
 
   if (!isAuthenticated) {
     return (
@@ -36,6 +35,16 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <SettingsProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </SettingsProvider>
   );
 }
 

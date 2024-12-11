@@ -11,9 +11,10 @@ interface SettingsContextType {
   updateSettings: (newSettings: Partial<Settings>) => void;
 }
 
+// Default session duration set to 30 minutes
 const defaultSettings: Settings = {
   language: 'en',
-  sessionDuration: 1,
+  sessionDuration: 30,
 };
 
 export const SettingsContext = createContext<SettingsContextType>({
@@ -28,8 +29,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const savedSettings = localStorage.getItem(SETTINGS_KEY);
     if (savedSettings) {
       try {
-        return JSON.parse(savedSettings);
+        const parsed = JSON.parse(savedSettings);
+        // Ensure session duration is at least 5 minutes
+        return {
+          ...parsed,
+          sessionDuration: Math.max(parsed.sessionDuration || defaultSettings.sessionDuration, 5)
+        };
       } catch {
+        console.warn('Failed to parse saved settings, using defaults');
         return defaultSettings;
       }
     }
@@ -37,11 +44,25 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      console.log('Settings saved:', settings);
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+    }
   }, [settings]);
 
   const updateSettings = (newSettings: Partial<Settings>) => {
-    setSettings(prev => ({ ...prev, ...newSettings }));
+    console.log('Updating settings:', newSettings);
+    setSettings(prev => {
+      const updated = { ...prev, ...newSettings };
+      // Ensure session duration is at least 5 minutes
+      if (updated.sessionDuration < 5) {
+        console.warn('Session duration cannot be less than 5 minutes, setting to 5');
+        updated.sessionDuration = 5;
+      }
+      return updated;
+    });
   };
 
   return (

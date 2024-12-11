@@ -1,45 +1,65 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
-echo "Starting services..."
+# Function to wait for a service to be ready
+wait_for() {
+    local host="$1"
+    local port="$2"
+    local service="$3"
+    local retries=30
+    local wait=1
 
-# Initialize database directory
-echo "Initializing database directory..."
+    echo "Waiting for $service to be ready..."
+    while ! nc -z "$host" "$port"; do
+        retries=$((retries - 1))
+        if [ $retries -eq 0 ]; then
+            echo >&2 "$service is not available"
+            exit 1
+        fi
+        sleep $wait
+    done
+    echo "$service is ready!"
+}
+
+# Create data directory if it doesn't exist
 mkdir -p /data
-touch /data/dev.db
-chown node:node /data/dev.db
-chmod 644 /data/dev.db
+chown -R node:node /data
 
-# Change to backend directory
+# Switch to node user for Prisma operations
+su-exec node:node bash << 'EOF'
 cd /app/backend
 
-# Run database migrations as node user
-echo "Running Prisma migrations..."
-export DATABASE_URL="file:/data/dev.db"
-su-exec node sh -c 'npx prisma generate && npx prisma migrate deploy'
+# Generate Prisma client
+echo "Generating Prisma client..."
+npx prisma generate
 
-# Start backend server as node user in the background
-echo "Starting backend server..."
-su-exec node node dist/index.js &
-BACKEND_PID=$!
+# Run database migrations
+echo "Running database migrations..."
+npx prisma migrate deploy
 
-# Wait for backend to be ready
-echo "Waiting for backend to be ready..."
-timeout=30
-while ! nc -z localhost 3000; do
-  if [ "$timeout" -le "0" ]; then
-    echo "Timeout waiting for backend"
-    exit 1
-  fi
-  timeout=$((timeout-1))
-  sleep 1
-done
+# Create database if it doesn't exist
+if [ ! -f "/data/dev.db" ]; then
+    echo "Initializing database..."
+    npx prisma db push
+fi
+EOF
 
-echo "Backend is ready. Starting nginx..."
-# Start nginx in the foreground
+# Start nginx in background
+echo "Starting nginx..."
 nginx -g 'daemon off;' &
-NGINX_PID=$!
 
-# Monitor both processes
-echo "All services started. Monitoring processes..."
-wait $BACKEND_PID $NGINX_PID
+# Wait for nginx to start
+wait_for localhost 80 "nginx"
+
+# Start backend server
+echo "Starting backend server..."
+cd /app/backend
+su-exec node:node node dist/index.js &
+
+# Wait for backend to start
+wait_for localhost 3000 "backend"
+
+echo "All services are running!"
+
+# Keep container running
+tail -f /dev/null

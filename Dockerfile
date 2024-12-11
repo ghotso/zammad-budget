@@ -1,81 +1,69 @@
-# Build stage for frontend
+# Build frontend
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-
-# Set ownership and install dependencies
-RUN chown -R node:node .
-USER node
-RUN npm install
-
-# Copy source and build
-COPY --chown=node:node frontend/ ./
-# Ensure production environment
+RUN npm ci
+COPY frontend/ ./
 ENV NODE_ENV=production
 RUN npm run build
 
-# Build stage for backend
+# Build backend
 FROM node:20-alpine AS backend-builder
 WORKDIR /app/backend
 COPY backend/package*.json ./
+RUN npm ci
+COPY backend/ ./
+RUN npx prisma generate
+RUN npm run build
 
-# Set ownership and install dependencies
-RUN chown -R node:node .
-USER node
-RUN npm install
-
-# Copy source
-COPY --chown=node:node backend/ ./
-# Generate Prisma client first, then build
-RUN npx prisma generate && \
-    npm run build
-
-# Final stage
-FROM node:20-alpine AS runner
+# Production image
+FROM node:20-alpine
 WORKDIR /app
 
-# Install required packages
+# Install nginx and other required packages
 RUN apk add --no-cache \
     nginx \
+    bash \
     openssl \
-    openssl-dev \
     curl \
     netcat-openbsd \
-    su-exec \
-    && rm -rf /var/cache/apk/*
+    su-exec
 
-# Create required directories with correct permissions
+# Create required directories
 RUN mkdir -p /data \
     && mkdir -p /run/nginx \
     && chown -R node:node /data \
-    && chmod 755 /data \
-    && chown -R root:root /run/nginx \
-    && chmod -R 755 /run/nginx \
-    && chown -R root:root /usr/share/nginx \
-    && chmod -R 755 /usr/share/nginx
+    && chmod 755 /data
 
 # Copy frontend build and nginx config
 COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
 COPY frontend/nginx.conf /etc/nginx/http.d/default.conf
 
-# Copy backend with correct permissions
-COPY --from=backend-builder --chown=node:node /app/backend/dist ./backend/dist
-COPY --from=backend-builder --chown=node:node /app/backend/node_modules ./backend/node_modules
-COPY --from=backend-builder --chown=node:node /app/backend/package.json ./backend/package.json
-COPY --from=backend-builder --chown=node:node /app/backend/prisma ./backend/prisma
+# Copy backend build
+COPY --from=backend-builder /app/backend/dist ./backend/dist
+COPY --from=backend-builder /app/backend/node_modules ./backend/node_modules
+COPY --from=backend-builder /app/backend/package.json ./backend/package.json
+COPY --from=backend-builder /app/backend/prisma ./backend/prisma
 
 # Copy entrypoint script
 COPY docker-entrypoint.sh /
 RUN chmod +x /docker-entrypoint.sh
 
-# Expose container ports
-EXPOSE 80 3000
+# Set proper permissions
+RUN chown -R nginx:nginx /usr/share/nginx/html \
+    && chown -R nginx:nginx /var/cache/nginx \
+    && chown -R nginx:nginx /var/log/nginx \
+    && chown -R nginx:nginx /etc/nginx/http.d \
+    && chown -R nginx:nginx /run/nginx \
+    && chown -R node:node /app/backend
 
-# Set environment variables
+# Environment variables
 ENV NODE_ENV=production \
     PORT=3000 \
-    DATABASE_URL=file:/data/dev.db \
-    DEBUG_LVL=debug
+    DATABASE_URL=file:/data/dev.db
 
-# Start services
+# Expose ports
+EXPOSE 80 3000
+
+# Set entrypoint
 ENTRYPOINT ["/docker-entrypoint.sh"]

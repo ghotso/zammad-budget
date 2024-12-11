@@ -3,39 +3,61 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
-import { sign } from 'hono/jwt';
-import { jwt } from 'hono/jwt';
+import { sign, verify } from 'hono/jwt';
+import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { ZammadService } from './services/zammad.js';
 import { BudgetService } from './services/budget.js';
 import 'dotenv/config';
+import { createHash, randomBytes } from 'crypto';
 
 // Define environment type
 type Env = {
   JWT_SECRET: string;
 };
 
+// Define cookie options type
+interface CookieSettings {
+  httpOnly?: boolean;
+  secure?: boolean;
+  sameSite?: 'Lax' | 'Strict' | 'None';
+  path?: string;
+  maxAge?: number;
+  domain?: string;
+}
+
 const app = new Hono<{ Bindings: Env }>();
 const zammadService = new ZammadService();
 const budgetService = new BudgetService();
 
-// Custom logging middleware
+// Environment configuration
+const isDev = process.env.NODE_ENV !== 'production';
+const APP_PASSWORD = process.env.APP_PASSWORD || 'admin';
+const JWT_SECRET = process.env.JWT_SECRET || (isDev ? 'development-secret' : '');
+
+if (!JWT_SECRET) {
+  console.error('JWT_SECRET is required in production');
+  process.exit(1);
+}
+
+// Enhanced logging middleware
 app.use('*', async (c, next) => {
-  console.log(`[${new Date().toISOString()}] ${c.req.method} ${c.req.url}`);
-  console.log('Headers:', Object.fromEntries(c.req.raw.headers.entries()));
+  const requestId = randomBytes(4).toString('hex');
+  console.log(`[${requestId}] [${new Date().toISOString()}] ${c.req.method} ${c.req.url}`);
+  console.log(`[${requestId}] Headers:`, Object.fromEntries(c.req.raw.headers.entries()));
+  console.log(`[${requestId}] Origin:`, c.req.header('origin'));
   
   try {
     if (c.req.method === 'POST') {
       const clonedReq = c.req.raw.clone();
       const body = await clonedReq.json();
-      console.log('Request body:', body);
+      console.log(`[${requestId}] Request body:`, body);
     }
   } catch (e) {
-    // Ignore body parsing errors
+    console.log(`[${requestId}] Could not parse request body`);
   }
 
   await next();
-
-  console.log(`[${new Date().toISOString()}] Response status: ${c.res.status}`);
+  console.log(`[${requestId}] Response status: ${c.res.status}`);
 });
 
 // Middleware
@@ -43,7 +65,6 @@ app.use('*', logger());
 app.use('*', prettyJSON());
 
 // CORS configuration
-const isDev = process.env.NODE_ENV !== 'production';
 const allowedOrigins = [
   'http://localhost:5173',    // Vite dev server
   'http://localhost:8071',    // Production port
@@ -62,25 +83,39 @@ app.use('*', cors({
     }
 
     if (isDev) {
-      // In development, be more permissive
+      console.log('Development mode: allowing origin', origin);
       return origin;
     }
 
-    // In production, strictly check against allowed origins
     const isAllowed = allowedOrigins.includes(origin);
     console.log(`Origin ${origin} ${isAllowed ? 'is' : 'is not'} allowed`);
     return isAllowed ? origin : allowedOrigins[0];
   },
   credentials: true,
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'Accept', 'Cookie'],
-  exposeHeaders: ['Set-Cookie'],
+  allowHeaders: ['Content-Type', 'Authorization', 'Accept', 'Cookie', 'X-CSRF-Token'],
+  exposeHeaders: ['Set-Cookie', 'X-CSRF-Token'],
   maxAge: 86400,
 }));
 
-// Authentication
-const APP_PASSWORD = process.env.APP_PASSWORD || 'admin';
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+// Generate CSRF token
+const generateCSRFToken = () => {
+  return randomBytes(32).toString('hex');
+};
+
+// Verify CSRF token
+const verifyCSRFToken = (requestToken: string | null, sessionToken: string | null) => {
+  return requestToken && sessionToken && requestToken === sessionToken;
+};
+
+// Get cookie domain
+const getCookieDomain = (c: any): string => {
+  const host = c.req.header('host');
+  if (!host || host.includes('localhost') || host.includes('127.0.0.1')) {
+    return 'localhost';
+  }
+  return host.split(':')[0];
+};
 
 // Login endpoint
 app.post('/api/login', async (c) => {
@@ -94,19 +129,39 @@ app.post('/api/login', async (c) => {
       return c.json({ error: 'Invalid password' }, 401);
     }
 
-    console.log('Password validated, generating token');
-    const token = await sign({ authenticated: true }, JWT_SECRET);
+    console.log('Password validated, generating tokens');
     
-    // Set cookie with appropriate settings for development/production
-    const cookieOptions = isDev
-      ? `auth=${token}; HttpOnly; Path=/; SameSite=Lax`
-      : `auth=${token}; HttpOnly; Path=/; SameSite=Strict; Secure`;
+    // Generate tokens
+    const csrfToken = generateCSRFToken();
+    const jwtToken = await sign({ 
+      authenticated: true,
+      csrf: csrfToken,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24) // 24 hours
+    }, JWT_SECRET);
 
-    console.log('Setting cookie:', cookieOptions);
-    c.header('Set-Cookie', cookieOptions);
+    const domain = getCookieDomain(c);
+    console.log('Setting cookies for domain:', domain);
 
-    console.log('Login successful');
-    return c.json({ success: true });
+    // Set cookie options
+    const cookieOptions: CookieSettings = {
+      httpOnly: true,
+      secure: !isDev,
+      sameSite: isDev ? 'Lax' : 'Strict',
+      path: '/',
+      maxAge: 60 * 60 * 24, // 24 hours
+      domain
+    };
+
+    // Set cookies
+    setCookie(c, 'auth', jwtToken, cookieOptions);
+    setCookie(c, 'csrf', csrfToken, { ...cookieOptions, httpOnly: false });
+
+    console.log('Login successful, tokens set');
+    return c.json({ 
+      success: true,
+      csrfToken 
+    });
   } catch (error) {
     console.error('Login error:', error);
     return c.json({ error: 'Internal server error' }, 500);
@@ -116,21 +171,59 @@ app.post('/api/login', async (c) => {
 // Logout endpoint
 app.post('/api/logout', (c) => {
   console.log('Logout request received');
-  c.header('Set-Cookie', 'auth=; HttpOnly; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
+  const domain = getCookieDomain(c);
+  const cookieOptions: CookieSettings = {
+    path: '/',
+    domain
+  };
+  
+  deleteCookie(c, 'auth', cookieOptions);
+  deleteCookie(c, 'csrf', cookieOptions);
   return c.json({ success: true });
 });
 
-// Protected routes middleware
-app.use('/api/*', jwt({
-  secret: JWT_SECRET,
-  cookie: 'auth'
-}));
+// Auth middleware
+async function authMiddleware(c: any, next: any) {
+  console.log('Checking authentication');
+  const authCookie = getCookie(c, 'auth') || null;
+  const csrfCookie = getCookie(c, 'csrf') || null;
+  const csrfHeader = c.req.header('X-CSRF-Token') || null;
+
+  if (!authCookie) {
+    console.log('No auth cookie found');
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  try {
+    const payload = await verify(authCookie, JWT_SECRET);
+    
+    // For non-GET requests, verify CSRF token
+    if (c.req.method !== 'GET') {
+      if (!verifyCSRFToken(csrfHeader, csrfCookie)) {
+        console.log('CSRF token verification failed');
+        console.log('Header token:', csrfHeader);
+        console.log('Cookie token:', csrfCookie);
+        return c.json({ error: 'Invalid CSRF token' }, 403);
+      }
+    }
+
+    c.set('user', payload);
+    await next();
+  } catch (error) {
+    console.error('Token verification failed:', error);
+    return c.json({ error: 'Invalid token' }, 401);
+  }
+}
+
+// Protected routes
+app.use('/api/*', authMiddleware);
 
 // Health check endpoint (unprotected)
 app.get('/health', (c) => {
   return c.json({
     status: 'ok',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV
   });
 });
 
@@ -215,6 +308,8 @@ const port = parseInt(process.env.PORT || '3000', 10);
 console.log(`Server is starting on port ${port}...`);
 console.log('Environment:', process.env.NODE_ENV);
 console.log('Allowed origins:', allowedOrigins);
+console.log('JWT Secret length:', JWT_SECRET.length);
+console.log('Database URL:', process.env.DATABASE_URL);
 
 serve({
   fetch: app.fetch,

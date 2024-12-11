@@ -24,14 +24,58 @@ export interface MonthlyTracking {
 // Use environment variable for API URL with fallback
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-export async function login(password: string): Promise<void> {
-  const response = await fetch(`${API_URL}/api/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ password }),
+// CSRF token storage
+let csrfToken: string | null = null;
+
+// Set CSRF token
+export const setCSRFToken = (token: string) => {
+  csrfToken = token;
+  console.log('CSRF token set');
+};
+
+// Clear CSRF token
+export const clearCSRFToken = () => {
+  csrfToken = null;
+  console.log('CSRF token cleared');
+};
+
+// Get stored CSRF token
+export const getCSRFToken = () => csrfToken;
+
+// Base fetch with CSRF handling
+const fetchWithCSRF = async (url: string, options: RequestInit = {}) => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string> || {}),
+  };
+
+  // Add CSRF token for non-GET requests
+  if (options.method && options.method !== 'GET' && csrfToken) {
+    headers['X-CSRF-Token'] = csrfToken;
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
     credentials: 'include',
+  });
+
+  if (response.status === 401) {
+    clearCSRFToken();
+    throw new Error('Unauthorized');
+  }
+
+  if (response.status === 403) {
+    throw new Error('Invalid CSRF token');
+  }
+
+  return response;
+};
+
+export async function login(password: string): Promise<void> {
+  const response = await fetchWithCSRF(`${API_URL}/api/login`, {
+    method: 'POST',
+    body: JSON.stringify({ password }),
   });
 
   if (!response.ok) {
@@ -42,34 +86,39 @@ export async function login(password: string): Promise<void> {
   if (!data.success) {
     throw new Error('Login failed');
   }
+
+  // Store CSRF token from successful login
+  if (data.csrfToken) {
+    setCSRFToken(data.csrfToken);
+  }
 }
 
 export async function logout(): Promise<void> {
-  const response = await fetch(`${API_URL}/api/logout`, {
-    method: 'POST',
-    credentials: 'include',
-  });
+  try {
+    const response = await fetchWithCSRF(`${API_URL}/api/logout`, {
+      method: 'POST',
+    });
 
-  if (!response.ok) {
-    throw new Error('Logout failed');
+    if (!response.ok) {
+      throw new Error('Logout failed');
+    }
+  } finally {
+    clearCSRFToken();
   }
 }
 
 export async function checkAuth(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_URL}/api/organizations`, {
-      credentials: 'include',
-    });
+    const response = await fetchWithCSRF(`${API_URL}/api/organizations`);
     return response.ok;
   } catch {
+    clearCSRFToken();
     return false;
   }
 }
 
 export async function getOrganizations(): Promise<Organization[]> {
-  const response = await fetch(`${API_URL}/api/organizations`, {
-    credentials: 'include',
-  });
+  const response = await fetchWithCSRF(`${API_URL}/api/organizations`);
 
   if (!response.ok) {
     throw new Error('Failed to fetch organizations');
@@ -79,9 +128,7 @@ export async function getOrganizations(): Promise<Organization[]> {
 }
 
 export async function getOrganization(id: string): Promise<Organization> {
-  const response = await fetch(`${API_URL}/api/organizations/${id}`, {
-    credentials: 'include',
-  });
+  const response = await fetchWithCSRF(`${API_URL}/api/organizations/${id}`);
 
   if (!response.ok) {
     throw new Error('Failed to fetch organization');
@@ -91,9 +138,7 @@ export async function getOrganization(id: string): Promise<Organization> {
 }
 
 export async function getBudgetHistory(organizationId: string): Promise<BudgetHistoryEntry[]> {
-  const response = await fetch(`${API_URL}/api/organizations/${organizationId}/budget-history`, {
-    credentials: 'include',
-  });
+  const response = await fetchWithCSRF(`${API_URL}/api/organizations/${organizationId}/budget-history`);
 
   if (!response.ok) {
     throw new Error('Failed to fetch budget history');
@@ -103,9 +148,7 @@ export async function getBudgetHistory(organizationId: string): Promise<BudgetHi
 }
 
 export async function getMonthlyTracking(organizationId: string): Promise<MonthlyTracking[]> {
-  const response = await fetch(`${API_URL}/api/organizations/${organizationId}/monthly-tracking`, {
-    credentials: 'include',
-  });
+  const response = await fetchWithCSRF(`${API_URL}/api/organizations/${organizationId}/monthly-tracking`);
 
   if (!response.ok) {
     throw new Error('Failed to fetch monthly tracking');
@@ -115,13 +158,9 @@ export async function getMonthlyTracking(organizationId: string): Promise<Monthl
 }
 
 export async function addBudget(organizationId: string, minutes: number, description: string): Promise<Organization> {
-  const response = await fetch(`${API_URL}/api/organizations/${organizationId}/budget`, {
+  const response = await fetchWithCSRF(`${API_URL}/api/organizations/${organizationId}/budget`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify({ minutes, description }),
-    credentials: 'include',
   });
 
   if (!response.ok) {
