@@ -22,12 +22,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Log in to the Container registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
@@ -57,4 +62,9 @@ jobs:
           platforms: linux/amd64
           build-args: |
             NODE_ENV=production
-            VITE_API_URL=/
+            VITE_API_URL=/api
+          secrets: |
+            ZAMMAD_URL=${{ secrets.ZAMMAD_URL }}
+            ZAMMAD_TOKEN=${{ secrets.ZAMMAD_TOKEN }}
+            APP_PASSWORD=${{ secrets.APP_PASSWORD }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}

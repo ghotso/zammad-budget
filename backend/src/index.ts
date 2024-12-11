@@ -18,11 +18,10 @@ const app = new Hono<{ Bindings: Env }>();
 const zammadService = new ZammadService();
 const budgetService = new BudgetService();
 
-// Enhanced logging middleware
+// Custom logging middleware
 app.use('*', async (c, next) => {
-  const start = Date.now();
   console.log(`[${new Date().toISOString()}] ${c.req.method} ${c.req.url}`);
-  console.log('Headers:', JSON.stringify(c.req.headers, null, 2));
+  console.log('Headers:', Object.fromEntries(c.req.raw.headers.entries()));
   
   try {
     if (c.req.method === 'POST') {
@@ -36,8 +35,7 @@ app.use('*', async (c, next) => {
 
   await next();
 
-  const end = Date.now();
-  console.log(`[${new Date().toISOString()}] Response status: ${c.res.status} - ${end - start}ms`);
+  console.log(`[${new Date().toISOString()}] Response status: ${c.res.status}`);
 });
 
 // Middleware

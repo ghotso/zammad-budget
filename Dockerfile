@@ -10,8 +10,8 @@ RUN npm install
 
 # Copy source and build
 COPY --chown=node:node frontend/ ./
-# Set production API URL for frontend build
-ENV VITE_API_URL=/
+# Ensure production environment
+ENV NODE_ENV=production
 RUN npm run build
 
 # Build stage for backend
@@ -24,10 +24,11 @@ RUN chown -R node:node .
 USER node
 RUN npm install
 
-# Copy source and build
+# Copy source
 COPY --chown=node:node backend/ ./
-RUN npm run build && \
-    npx prisma generate
+# Generate Prisma client first, then build
+RUN npx prisma generate && \
+    npm run build
 
 # Final stage
 FROM node:20-alpine AS runner
