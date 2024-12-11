@@ -2,155 +2,154 @@
 
 A web application to manage and track time budgets for Zammad organizations.
 
-## Development Setup
+## Features
 
-1. Clone the repository
-2. Copy `.env.example` to `.env` and configure environment variables
-3. Install dependencies:
+- Track time budgets per organization
+- Monthly budget tracking
+- Secure authentication
+- Responsive web interface
+
+## Deployment Instructions
+
+### Using GitHub Container Registry (ghcr.io)
+
+The application is available as a Docker container from GitHub Container Registry:
+
 ```bash
-# Install backend dependencies
-cd backend
-npm install
-
-# Install frontend dependencies
-cd ../frontend
-npm install
+docker pull ghcr.io/your-username/zammad-budget:latest
 ```
 
-4. Start the development servers:
-```bash
-# Start backend (from backend directory)
-npm run dev
+### Required Ports
 
-# Start frontend (from frontend directory)
-npm run dev
-```
-
-Development servers will be available at:
-- Frontend: http://localhost:5173
-- Backend: http://localhost:3000
-
-## Production Deployment (Unraid)
-
-### Container Information
-- Image: `ghcr.io/[your-username]/zammad-budget:latest`
-- Container Version: Latest
-
-### Port Mappings
-| Host Port | Container Port | Description |
-|-----------|---------------|-------------|
-| 8071 | 80 | Frontend/UI |
-| 3071 | 3000 | Backend API |
-
-### Volume Mapping
-| Host Path | Container Path | Description |
-|-----------|---------------|-------------|
-| /mnt/user/appdata/zammad-budget | /data | Application data |
+- Web Interface: 80 (HTTP)
+- Backend API: 3000 (Internal)
 
 ### Environment Variables
-| Variable | Description | Required |
-|----------|-------------|----------|
-| ZAMMAD_URL | Your Zammad instance URL | Yes |
-| ZAMMAD_TOKEN | Zammad API token | Yes |
-| APP_PASSWORD | Application login password | Yes |
-| JWT_SECRET | Secret for JWT tokens | Yes |
-| NODE_ENV | Environment setting | Yes |
 
-### Setup Instructions
+#### Required Variables
 
-1. Create the appdata directory:
-```bash
-mkdir -p /mnt/user/appdata/zammad-budget
+```env
+# Security
+JWT_SECRET=your-secure-jwt-secret-here      # Required: Secret key for JWT tokens
+APP_PASSWORD=your-app-password-here         # Required: Password for application login
+
+# Zammad Integration
+ZAMMAD_URL=http://your-zammad-instance      # Required: Your Zammad instance URL
+ZAMMAD_TOKEN=your-zammad-token             # Required: Zammad API token
 ```
 
-2. Configure container in Unraid:
-   - Add new container
-   - Set container name: zammad-budget
-   - Set image path: ghcr.io/[your-username]/zammad-budget:latest
-   - Configure port mappings:
-     - 8071:80
-     - 3071:3000
-   - Configure volume mapping:
-     - /mnt/user/appdata/zammad-budget:/data
-   - Set required environment variables
+#### Optional Variables
 
-3. Start the container
+```env
+# Application Settings
+NODE_ENV=production                        # Optional: Environment (default: production)
+PORT=3000                                 # Optional: Backend port (default: 3000)
 
-### Access
-- Web UI: `http://[unraid-ip]:8071`
-- API: `http://[unraid-ip]:3071`
+# Database Configuration
+DATABASE_URL=file:/data/dev.db            # Optional: SQLite database path (default: /data/dev.db)
 
-## Architecture
+# Security Settings
+COOKIE_SECURE=true                        # Optional: Use secure cookies (default: true)
+COOKIE_SAMESITE=Strict                    # Optional: Cookie SameSite policy (default: Strict)
 
-### Frontend
-- React + Vite
-- TypeScript
-- Tailwind CSS
-- Environment-aware API configuration
-- JWT-based authentication
+# Logging
+DEBUG_LEVEL=error                         # Optional: Log level (default: error)
+ENABLE_REQUEST_LOGGING=false              # Optional: Enable request logging (default: false)
 
-### Backend
-- Node.js
-- Hono framework
-- SQLite database
-- Prisma ORM
-- JWT authentication
+# Resource Limits
+MEMORY_LIMIT=512M                         # Optional: Container memory limit
+CPU_LIMIT=1.0                            # Optional: Container CPU limit
+```
 
-### Container
-- Alpine Linux base
-- Nginx for frontend serving
-- Node.js for backend
-- SQLite database in mounted volume
-- Automatic database migrations
-- Environment variable validation
+### Unraid Configuration
 
-## Development Notes
+1. Add a new Docker container in Unraid
+2. Use the following settings:
 
-### Environment Files
-- `.env.development` - Development configuration
-- `.env.production` - Production configuration
-- `.env.example` - Template for configuration
+   - Repository: `ghcr.io/your-username/zammad-budget`
+   - Network Type: `bridge`
+   - Port Mappings:
+     - `80:80/tcp` (Web Interface)
+   - Environment Variables:
+     - Add all required variables listed above
+   - Volumes:
+     - `/data:/data` (For persistent database storage)
 
-### Database
-- Location: `/data/dev.db` in container
-- Migrations run automatically on startup
-- Prisma schema in `backend/prisma/schema.prisma`
+3. Set the following paths in Unraid:
+   - Config Path: `/mnt/user/appdata/zammad-budget`
+   - Data Path: `/mnt/user/appdata/zammad-budget/data`
 
-### API Endpoints
-- `/api/login` - Authentication
-- `/api/organizations` - List organizations
-- `/api/organizations/:id` - Organization details
-- `/api/organizations/:id/budget-history` - Budget history
-- `/api/organizations/:id/monthly-tracking` - Monthly tracking
+### Volume Mounts
 
-## Troubleshooting
+The following volumes should be mounted for persistent data:
 
-### Common Issues
+```yaml
+volumes:
+  - /path/to/data:/data              # Database and backups
+```
 
-1. Login Issues
-   - Verify environment variables are set correctly
-   - Check browser console for CORS errors
-   - Verify cookie settings in nginx configuration
+### Health Checks
 
-2. Database Issues
-   - Check /data directory permissions
-   - Verify database file exists and is writable
-   - Check Prisma migration logs
+The application includes built-in health checks:
 
-3. Network Issues
-   - Verify port mappings
-   - Check nginx proxy configuration
-   - Verify CORS settings
+- Web Interface: `http://your-server/health`
+- Backend API: `http://your-server/api/health`
 
-### Logs
-- Container logs available in Unraid interface
-- Backend logs include detailed request/response information
-- Nginx access/error logs included in container logs
+### Backup Considerations
 
-## Security Notes
-- All sensitive data must be passed via environment variables
-- Never commit .env files or credentials
-- JWT tokens used for session management
-- Cookies set with secure flags
-- CORS configured for production environment
-- Database stored in protected volume
+The application automatically backs up the SQLite database to `/data/backups`. Ensure this directory is included in your backup strategy.
+
+### Security Notes
+
+1. Always change the default `APP_PASSWORD` and `JWT_SECRET`
+2. Use HTTPS in production
+3. Set secure cookie options in production
+4. Regularly update the container to get security patches
+
+### Troubleshooting
+
+Common issues and solutions:
+
+1. Login not working:
+   - Verify `APP_PASSWORD` is set correctly
+   - Check `JWT_SECRET` is properly configured
+   - Ensure cookies are enabled in your browser
+
+2. Database errors:
+   - Check `/data` volume permissions
+   - Verify SQLite database exists and is writable
+
+3. Network issues:
+   - Verify Zammad instance is accessible
+   - Check CORS settings if using custom domain
+   - Ensure ports are properly mapped
+
+### Support
+
+For issues and feature requests, please use the GitHub issue tracker.
+
+## Development
+
+### Prerequisites
+
+- Node.js 20 or later
+- npm 10 or later
+
+### Local Development
+
+```bash
+# Install dependencies
+npm install
+
+# Start development servers
+npm run dev
+```
+
+### Building
+
+```bash
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview

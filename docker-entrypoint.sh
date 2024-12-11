@@ -21,6 +21,11 @@ wait_for() {
     echo "$service is ready!"
 }
 
+# Ensure required environment variables
+: "${JWT_SECRET:?JWT_SECRET is required}"
+: "${APP_PASSWORD:?APP_PASSWORD is required}"
+: "${DATABASE_URL:?DATABASE_URL is required}"
+
 # Create data directory if it doesn't exist
 mkdir -p /data
 chown -R node:node /data
@@ -49,17 +54,28 @@ echo "Starting nginx..."
 nginx -g 'daemon off;' &
 
 # Wait for nginx to start
-wait_for localhost 80 "nginx"
+wait_for 0.0.0.0 80 "nginx"
 
 # Start backend server
 echo "Starting backend server..."
 cd /app/backend
+
+# Export environment variables for the backend
+export NODE_ENV=${NODE_ENV:-production}
+export PORT=${PORT:-3000}
+export JWT_SECRET=${JWT_SECRET}
+export APP_PASSWORD=${APP_PASSWORD}
+export DATABASE_URL=${DATABASE_URL}
+export ZAMMAD_URL=${ZAMMAD_URL}
+export ZAMMAD_TOKEN=${ZAMMAD_TOKEN}
+
+# Start the backend server as node user
 su-exec node:node node dist/index.js &
 
 # Wait for backend to start
-wait_for localhost 3000 "backend"
+wait_for 0.0.0.0 3000 "backend"
 
 echo "All services are running!"
 
-# Keep container running
-tail -f /dev/null
+# Keep container running and forward logs
+exec tail -f /var/log/nginx/access.log /var/log/nginx/error.log

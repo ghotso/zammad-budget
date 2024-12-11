@@ -1,26 +1,16 @@
 version: '3.8'
 
 services:
-  frontend:
+  app:
     build:
-      context: ./frontend
+      context: .
       dockerfile: Dockerfile
+      args:
+        - NODE_ENV=production
+        - VITE_APP_VERSION=${VITE_APP_VERSION:-2024.12.11}
+        - BUILD_TIMESTAMP=${BUILD_TIMESTAMP:-$(date -u +'%Y-%m-%dT%H:%M:%SZ')}
     ports:
-      - "8071:80"
-    environment:
-      - NODE_ENV=production
-      - VITE_API_URL=/api
-    depends_on:
-      - backend
-    networks:
-      - app-network
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "3071:3000"
+      - "${PORT:-8071}:80"
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -29,8 +19,30 @@ services:
       - APP_PASSWORD=${APP_PASSWORD}
       - ZAMMAD_URL=${ZAMMAD_URL}
       - ZAMMAD_TOKEN=${ZAMMAD_TOKEN}
+      - TZ=${TZ:-UTC}
+      - COOKIE_SECURE=true
+      - COOKIE_SAMESITE=Strict
+      - DEBUG_LEVEL=${DEBUG_LEVEL:-error}
+      - ENABLE_REQUEST_LOGGING=${ENABLE_REQUEST_LOGGING:-false}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:8071}
     volumes:
-      - ./data:/data
+      - data:/data
+      - backups:/data/backups
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    restart: unless-stopped
     networks:
       - app-network
 
@@ -40,4 +52,6 @@ networks:
 
 volumes:
   data:
+    driver: local
+  backups:
     driver: local

@@ -33,6 +33,14 @@ const budgetService = new BudgetService();
 const isDev = process.env.NODE_ENV !== 'production';
 const APP_PASSWORD = process.env.APP_PASSWORD || 'admin';
 const JWT_SECRET = process.env.JWT_SECRET || (isDev ? 'development-secret' : '');
+const CORS_ALLOWED_ORIGINS = process.env.CORS_ALLOWED_ORIGINS?.split(',') || [
+  'http://localhost:5173',    // Vite dev server
+  'http://localhost:8071',    // Production port
+  'http://localhost:3071',    // Development API port
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:8071',
+  'http://127.0.0.1:3071'
+];
 
 if (!JWT_SECRET) {
   console.error('JWT_SECRET is required in production');
@@ -65,21 +73,12 @@ app.use('*', logger());
 app.use('*', prettyJSON());
 
 // CORS configuration
-const allowedOrigins = [
-  'http://localhost:5173',    // Vite dev server
-  'http://localhost:8071',    // Production port
-  'http://localhost:3071',    // Development API port
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:8071',
-  'http://127.0.0.1:3071'
-];
-
 app.use('*', cors({
   origin: (origin) => {
     console.log('Request origin:', origin);
     if (!origin) {
       console.log('No origin header present');
-      return allowedOrigins[0];
+      return CORS_ALLOWED_ORIGINS[0];
     }
 
     if (isDev) {
@@ -87,9 +86,14 @@ app.use('*', cors({
       return origin;
     }
 
-    const isAllowed = allowedOrigins.includes(origin);
+    // In production, check against configured allowed origins
+    const isAllowed = CORS_ALLOWED_ORIGINS.some(allowed => {
+      // Allow exact matches and subdomain matches
+      return origin === allowed || origin.endsWith('.' + allowed.replace(/^https?:\/\//, ''));
+    });
+
     console.log(`Origin ${origin} ${isAllowed ? 'is' : 'is not'} allowed`);
-    return isAllowed ? origin : allowedOrigins[0];
+    return isAllowed ? origin : CORS_ALLOWED_ORIGINS[0];
   },
   credentials: true,
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -109,12 +113,24 @@ const verifyCSRFToken = (requestToken: string | null, sessionToken: string | nul
 };
 
 // Get cookie domain
-const getCookieDomain = (c: any): string => {
+const getCookieDomain = (c: any): string | undefined => {
   const host = c.req.header('host');
-  if (!host || host.includes('localhost') || host.includes('127.0.0.1')) {
-    return 'localhost';
+  if (!host) return undefined;
+
+  // For localhost or development
+  if (isDev || host.includes('localhost') || host.includes('127.0.0.1')) {
+    return undefined;
   }
-  return host.split(':')[0];
+
+  // For production, use the host without port
+  const domain = host.split(':')[0];
+  
+  // If it's an IP address, don't set domain
+  if (/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(domain)) {
+    return undefined;
+  }
+
+  return domain;
 };
 
 // Login endpoint
@@ -174,7 +190,9 @@ app.post('/api/logout', (c) => {
   const domain = getCookieDomain(c);
   const cookieOptions: CookieSettings = {
     path: '/',
-    domain
+    domain,
+    secure: !isDev,
+    sameSite: isDev ? 'Lax' : 'Strict'
   };
   
   deleteCookie(c, 'auth', cookieOptions);
@@ -223,7 +241,8 @@ app.get('/health', (c) => {
   return c.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV
+    environment: process.env.NODE_ENV,
+    version: process.env.npm_package_version || '1.0.0'
   });
 });
 
@@ -307,7 +326,7 @@ const port = parseInt(process.env.PORT || '3000', 10);
 
 console.log(`Server is starting on port ${port}...`);
 console.log('Environment:', process.env.NODE_ENV);
-console.log('Allowed origins:', allowedOrigins);
+console.log('Allowed origins:', CORS_ALLOWED_ORIGINS);
 console.log('JWT Secret length:', JWT_SECRET.length);
 console.log('Database URL:', process.env.DATABASE_URL);
 

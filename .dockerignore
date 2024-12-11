@@ -5,8 +5,10 @@
 
 # Environment files
 .env
-.env.*
+.env.local
+.env.*.local
 !.env.example
+!.env.production
 
 # Dependencies
 node_modules
@@ -16,10 +18,11 @@ node_modules
 .vscode
 .idea
 *.log
-*.lock
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.eslintcache
+.stylelintcache
 
 # Build outputs
 **/dist
@@ -29,41 +32,40 @@ yarn-error.log*
 **/.output
 
 # Database
-**/dev.db
-**/prisma/dev.db
-**/prisma/*.db
-**/prisma/*.db-journal
+**/*.db
+**/*.db-journal
+!**/prisma/migrations/**/*.sql
 
 # Testing
 coverage
 .nyc_output
 **/__tests__
+**/__mocks__
 **/*.test.*
 **/*.spec.*
+**/jest.config.*
+**/cypress
+**/e2e
 
 # Documentation
 docs
-*.md
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE.md
 !README.md
 
 # OS files
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Docker files
-.dockerignore
-**/Dockerfile
-docker-compose*.yml
-
-# Temporary files
+# Editor files
 *.swp
 *.swo
 *~
-
-# Debug files
-.debug
-*.debug
-debug.log
+.vscode
+.idea
+*.sublime-*
 
 # Cache directories
 .cache
@@ -71,3 +73,37 @@ debug.log
 .yarn
 **/.cache
 **/tmp
+.eslintcache
+.stylelintcache
+
+# Development configs
+**/.prettierrc
+**/.eslintrc*
+**/.stylelintrc*
+**/tsconfig.*.json
+**/vite.config.*.ts
+**/.babelrc*
+**/jest.config.*
+**/cypress.config.*
+
+# Backup files
+*.bak
+*.backup
+**/backups
+
+# Debug files
+.debug
+*.debug
+debug.log
+
+# Docker files in subdirectories (keep root Dockerfile)
+**/Dockerfile
+**/docker-compose*.yml
+**/.dockerignore
+
+# Misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

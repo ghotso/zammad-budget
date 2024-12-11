@@ -4,7 +4,11 @@ WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ ./
-ENV NODE_ENV=production
+ARG VITE_APP_VERSION
+ARG BUILD_TIMESTAMP
+ENV NODE_ENV=production \
+    VITE_APP_VERSION=${VITE_APP_VERSION} \
+    BUILD_TIMESTAMP=${BUILD_TIMESTAMP}
 RUN npm run build
 
 # Build backend
@@ -27,10 +31,14 @@ RUN apk add --no-cache \
     openssl \
     curl \
     netcat-openbsd \
-    su-exec
+    su-exec \
+    tzdata \
+    && cp /usr/share/zoneinfo/UTC /etc/localtime \
+    && echo "UTC" > /etc/timezone
 
 # Create required directories
 RUN mkdir -p /data \
+    && mkdir -p /data/backups \
     && mkdir -p /run/nginx \
     && chown -R node:node /data \
     && chmod 755 /data
@@ -60,10 +68,26 @@ RUN chown -R nginx:nginx /usr/share/nginx/html \
 # Environment variables
 ENV NODE_ENV=production \
     PORT=3000 \
-    DATABASE_URL=file:/data/dev.db
+    DATABASE_URL=file:/data/dev.db \
+    TZ=UTC
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
+
+# Labels
+LABEL org.opencontainers.image.title="Zammad Budget Manager" \
+    org.opencontainers.image.description="Track and manage time budgets for Zammad organizations" \
+    org.opencontainers.image.version=${VITE_APP_VERSION} \
+    org.opencontainers.image.created=${BUILD_TIMESTAMP} \
+    org.opencontainers.image.source="https://github.com/your-username/zammad-budget" \
+    org.opencontainers.image.licenses="MIT"
 
 # Expose ports
 EXPOSE 80 3000
+
+# Create volume mount points
+VOLUME ["/data", "/data/backups"]
 
 # Set entrypoint
 ENTRYPOINT ["/docker-entrypoint.sh"]
