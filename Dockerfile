@@ -3,17 +3,18 @@
 # Base Node.js image for building
 FROM node:20-alpine AS base
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
-
-# Install system dependencies
-RUN apk add --no-cache \
+# Install pnpm and system dependencies
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate && \
+    apk add --no-cache \
     python3 \
     make \
     g++ \
     git \
     nginx \
     netcat-openbsd
+
+# Install Prisma CLI globally
+RUN pnpm add -g prisma@5.22.0
 
 WORKDIR /app
 
@@ -67,7 +68,8 @@ RUN chmod +x /app/docker-entrypoint.sh
 # Set environment variables
 ENV NODE_ENV=production \
     PORT=3000 \
-    DATABASE_URL=file:/data/dev.db
+    DATABASE_URL=file:/data/dev.db \
+    PRISMA_CLI_BINARY_TARGETS=linux-musl-openssl-3.0.x
 
 # Expose ports
 EXPOSE 80 3000

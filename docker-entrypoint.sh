@@ -55,6 +55,9 @@ fi
 
 # Initialize Prisma
 echo "Initializing Prisma..."
+
+# Generate Prisma client
+echo "Generating Prisma client..."
 if ! NODE_ENV=production pnpm exec prisma generate; then
     echo "Failed to generate Prisma client"
     exit 1
