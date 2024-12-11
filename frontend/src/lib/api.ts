@@ -21,10 +21,11 @@ export interface MonthlyTracking {
   minutes: number;
 }
 
-const API_URL = '/api';
+// Use environment variable for API URL with fallback
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export async function login(password: string): Promise<void> {
-  const response = await fetch(`${API_URL}/login`, {
+  const response = await fetch(`${API_URL}/api/login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -44,7 +45,7 @@ export async function login(password: string): Promise<void> {
 }
 
 export async function logout(): Promise<void> {
-  const response = await fetch(`${API_URL}/logout`, {
+  const response = await fetch(`${API_URL}/api/logout`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -56,7 +57,7 @@ export async function logout(): Promise<void> {
 
 export async function checkAuth(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_URL}/organizations`, {
+    const response = await fetch(`${API_URL}/api/organizations`, {
       credentials: 'include',
     });
     return response.ok;
@@ -66,7 +67,7 @@ export async function checkAuth(): Promise<boolean> {
 }
 
 export async function getOrganizations(): Promise<Organization[]> {
-  const response = await fetch(`${API_URL}/organizations`, {
+  const response = await fetch(`${API_URL}/api/organizations`, {
     credentials: 'include',
   });
 
@@ -78,7 +79,7 @@ export async function getOrganizations(): Promise<Organization[]> {
 }
 
 export async function getOrganization(id: string): Promise<Organization> {
-  const response = await fetch(`${API_URL}/organizations/${id}`, {
+  const response = await fetch(`${API_URL}/api/organizations/${id}`, {
     credentials: 'include',
   });
 
@@ -90,7 +91,7 @@ export async function getOrganization(id: string): Promise<Organization> {
 }
 
 export async function getBudgetHistory(organizationId: string): Promise<BudgetHistoryEntry[]> {
-  const response = await fetch(`${API_URL}/organizations/${organizationId}/budget-history`, {
+  const response = await fetch(`${API_URL}/api/organizations/${organizationId}/budget-history`, {
     credentials: 'include',
   });
 
@@ -102,7 +103,7 @@ export async function getBudgetHistory(organizationId: string): Promise<BudgetHi
 }
 
 export async function getMonthlyTracking(organizationId: string): Promise<MonthlyTracking[]> {
-  const response = await fetch(`${API_URL}/organizations/${organizationId}/monthly-tracking`, {
+  const response = await fetch(`${API_URL}/api/organizations/${organizationId}/monthly-tracking`, {
     credentials: 'include',
   });
 
@@ -114,7 +115,7 @@ export async function getMonthlyTracking(organizationId: string): Promise<Monthl
 }
 
 export async function addBudget(organizationId: string, minutes: number, description: string): Promise<Organization> {
-  const response = await fetch(`${API_URL}/organizations/${organizationId}/budget`, {
+  const response = await fetch(`${API_URL}/api/organizations/${organizationId}/budget`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
