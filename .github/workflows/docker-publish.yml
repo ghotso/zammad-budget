@@ -10,7 +10,6 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  NODE_VERSION: '20'
 
 jobs:
   build:
@@ -24,11 +23,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.3.0
 
       - name: Setup Docker buildx
         uses: docker/setup-buildx-action@v3
@@ -39,7 +35,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract Docker metadata
         id: meta
@@ -54,11 +50,6 @@ jobs:
             type=sha,format=long
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Set up environment variables
-        run: |
-          echo "VITE_APP_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
-          echo "BUILD_TIMESTAMP=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
-
       - name: Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@v5
@@ -72,10 +63,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-args: |
             NODE_ENV=production
-            VITE_APP_VERSION=${{ env.VITE_APP_VERSION }}
-            BUILD_TIMESTAMP=${{ env.BUILD_TIMESTAMP }}
-            BUILDPLATFORM=${{ runner.arch }}
-            TARGETPLATFORM=${{ runner.arch }}
+            VITE_APP_VERSION=${{ github.ref_name }}
+            BUILD_TIMESTAMP=${{ github.event.repository.updated_at }}
 
       - name: Sign the published Docker image
         if: ${{ github.event_name != 'pull_request' }}
@@ -83,12 +72,13 @@ jobs:
           COSIGN_EXPERIMENTAL: "true"
         run: echo "${{ steps.meta.outputs.tags }}" | xargs -I {} cosign sign --yes {}
 
-      - name: Update Docker Hub description
+      - name: Update container description
         if: github.event_name != 'pull_request'
         uses: peter-evans/dockerhub-description@v3
         with:
+          registry: ghcr.io
+          repository: ${{ github.repository }}
           username: ${{ github.actor }}
           password: ${{ secrets.TOKEN }}
-          repository: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           readme-filepath: ./README.md
           short-description: "Zammad Budget Manager - Track and manage time budgets for Zammad organizations"

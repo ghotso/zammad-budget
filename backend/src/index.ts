@@ -133,8 +133,54 @@ const getCookieDomain = (c: any): string | undefined => {
   return domain;
 };
 
-// Login endpoint
-app.post('/api/login', async (c) => {
+// Health check endpoint (unprotected)
+app.get('/health', (c) => {
+  return c.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    version: process.env.npm_package_version || '1.0.0'
+  });
+});
+
+// Auth middleware
+async function authMiddleware(c: any, next: any) {
+  console.log('Checking authentication');
+  const authCookie = getCookie(c, 'auth') || null;
+  const csrfCookie = getCookie(c, 'csrf') || null;
+  const csrfHeader = c.req.header('X-CSRF-Token') || null;
+
+  if (!authCookie) {
+    console.log('No auth cookie found');
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  try {
+    const payload = await verify(authCookie, JWT_SECRET);
+    
+    // For non-GET requests, verify CSRF token
+    if (c.req.method !== 'GET') {
+      if (!verifyCSRFToken(csrfHeader, csrfCookie)) {
+        console.log('CSRF token verification failed');
+        console.log('Header token:', csrfHeader);
+        console.log('Cookie token:', csrfCookie);
+        return c.json({ error: 'Invalid CSRF token' }, 403);
+      }
+    }
+
+    c.set('user', payload);
+    await next();
+  } catch (error) {
+    console.error('Token verification failed:', error);
+    return c.json({ error: 'Invalid token' }, 401);
+  }
+}
+
+// Create API router
+const api = new Hono();
+
+// Login endpoint (unprotected)
+api.post('/login', async (c) => {
   console.log('Login attempt received');
   try {
     const { password } = await c.req.json<{ password: string }>();
@@ -184,8 +230,8 @@ app.post('/api/login', async (c) => {
   }
 });
 
-// Logout endpoint
-app.post('/api/logout', (c) => {
+// Logout endpoint (unprotected)
+api.post('/logout', (c) => {
   console.log('Logout request received');
   const domain = getCookieDomain(c);
   const cookieOptions: CookieSettings = {
@@ -200,54 +246,10 @@ app.post('/api/logout', (c) => {
   return c.json({ success: true });
 });
 
-// Auth middleware
-async function authMiddleware(c: any, next: any) {
-  console.log('Checking authentication');
-  const authCookie = getCookie(c, 'auth') || null;
-  const csrfCookie = getCookie(c, 'csrf') || null;
-  const csrfHeader = c.req.header('X-CSRF-Token') || null;
+// Organizations routes
+const orgsRouter = new Hono();
 
-  if (!authCookie) {
-    console.log('No auth cookie found');
-    return c.json({ error: 'Unauthorized' }, 401);
-  }
-
-  try {
-    const payload = await verify(authCookie, JWT_SECRET);
-    
-    // For non-GET requests, verify CSRF token
-    if (c.req.method !== 'GET') {
-      if (!verifyCSRFToken(csrfHeader, csrfCookie)) {
-        console.log('CSRF token verification failed');
-        console.log('Header token:', csrfHeader);
-        console.log('Cookie token:', csrfCookie);
-        return c.json({ error: 'Invalid CSRF token' }, 403);
-      }
-    }
-
-    c.set('user', payload);
-    await next();
-  } catch (error) {
-    console.error('Token verification failed:', error);
-    return c.json({ error: 'Invalid token' }, 401);
-  }
-}
-
-// Protected routes
-app.use('/api/*', authMiddleware);
-
-// Health check endpoint (unprotected)
-app.get('/health', (c) => {
-  return c.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV,
-    version: process.env.npm_package_version || '1.0.0'
-  });
-});
-
-// Protected routes
-app.get('/api/organizations', async (c) => {
+orgsRouter.get('/', async (c) => {
   console.log('Fetching organizations');
   try {
     const orgs = await budgetService.getAllOrganizations();
@@ -259,7 +261,7 @@ app.get('/api/organizations', async (c) => {
   }
 });
 
-app.get('/api/organizations/:id', async (c) => {
+orgsRouter.get('/:id', async (c) => {
   const id = parseInt(c.req.param('id'));
   console.log(`Fetching organization details for ID: ${id}`);
   try {
@@ -271,7 +273,7 @@ app.get('/api/organizations/:id', async (c) => {
   }
 });
 
-app.get('/api/organizations/:id/budget-history', async (c) => {
+orgsRouter.get('/:id/budget-history', async (c) => {
   const id = parseInt(c.req.param('id'));
   console.log(`Fetching budget history for organization ID: ${id}`);
   try {
@@ -283,7 +285,7 @@ app.get('/api/organizations/:id/budget-history', async (c) => {
   }
 });
 
-app.get('/api/organizations/:id/monthly-tracking', async (c) => {
+orgsRouter.get('/:id/monthly-tracking', async (c) => {
   const id = parseInt(c.req.param('id'));
   console.log(`Fetching monthly tracking for organization ID: ${id}`);
   try {
@@ -295,7 +297,7 @@ app.get('/api/organizations/:id/monthly-tracking', async (c) => {
   }
 });
 
-app.post('/api/organizations/:id/budget', async (c) => {
+orgsRouter.post('/:id/budget', async (c) => {
   const id = parseInt(c.req.param('id'));
   console.log(`Updating budget for organization ID: ${id}`);
   try {
@@ -321,6 +323,13 @@ app.post('/api/organizations/:id/budget', async (c) => {
     return c.json({ error: 'Failed to update budget' }, 500);
   }
 });
+
+// Apply auth middleware to protected routes
+api.use('/organizations/*', authMiddleware);
+api.route('/organizations', orgsRouter);
+
+// Mount the API routes under /api
+app.route('/', api);
 
 const port = parseInt(process.env.PORT || '3000', 10);
 

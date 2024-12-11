@@ -21,8 +21,9 @@ export interface MonthlyTracking {
   minutes: number;
 }
 
-// Use environment variable for API URL with fallback
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Get the API URL from environment variables
+const API_URL = import.meta.env.VITE_API_URL;
+console.log('API URL:', API_URL); // Debug log
 
 // CSRF token storage
 let csrfToken: string | null = null;
@@ -54,6 +55,9 @@ const fetchWithCSRF = async (url: string, options: RequestInit = {}) => {
     headers['X-CSRF-Token'] = csrfToken;
   }
 
+  // Log the request URL for debugging
+  console.log('Making request to:', url);
+
   const response = await fetch(url, {
     ...options,
     headers,
@@ -73,7 +77,7 @@ const fetchWithCSRF = async (url: string, options: RequestInit = {}) => {
 };
 
 export async function login(password: string): Promise<void> {
-  const response = await fetchWithCSRF(`${API_URL}/api/login`, {
+  const response = await fetchWithCSRF(`${API_URL}/login`, {
     method: 'POST',
     body: JSON.stringify({ password }),
   });
@@ -95,7 +99,7 @@ export async function login(password: string): Promise<void> {
 
 export async function logout(): Promise<void> {
   try {
-    const response = await fetchWithCSRF(`${API_URL}/api/logout`, {
+    const response = await fetchWithCSRF(`${API_URL}/logout`, {
       method: 'POST',
     });
 
@@ -109,7 +113,7 @@ export async function logout(): Promise<void> {
 
 export async function checkAuth(): Promise<boolean> {
   try {
-    const response = await fetchWithCSRF(`${API_URL}/api/organizations`);
+    const response = await fetchWithCSRF(`${API_URL}/organizations`);
     return response.ok;
   } catch {
     clearCSRFToken();
@@ -118,7 +122,7 @@ export async function checkAuth(): Promise<boolean> {
 }
 
 export async function getOrganizations(): Promise<Organization[]> {
-  const response = await fetchWithCSRF(`${API_URL}/api/organizations`);
+  const response = await fetchWithCSRF(`${API_URL}/organizations`);
 
   if (!response.ok) {
     throw new Error('Failed to fetch organizations');
@@ -128,7 +132,7 @@ export async function getOrganizations(): Promise<Organization[]> {
 }
 
 export async function getOrganization(id: string): Promise<Organization> {
-  const response = await fetchWithCSRF(`${API_URL}/api/organizations/${id}`);
+  const response = await fetchWithCSRF(`${API_URL}/organizations/${id}`);
 
   if (!response.ok) {
     throw new Error('Failed to fetch organization');
@@ -138,7 +142,7 @@ export async function getOrganization(id: string): Promise<Organization> {
 }
 
 export async function getBudgetHistory(organizationId: string): Promise<BudgetHistoryEntry[]> {
-  const response = await fetchWithCSRF(`${API_URL}/api/organizations/${organizationId}/budget-history`);
+  const response = await fetchWithCSRF(`${API_URL}/organizations/${organizationId}/budget-history`);
 
   if (!response.ok) {
     throw new Error('Failed to fetch budget history');
@@ -148,7 +152,7 @@ export async function getBudgetHistory(organizationId: string): Promise<BudgetHi
 }
 
 export async function getMonthlyTracking(organizationId: string): Promise<MonthlyTracking[]> {
-  const response = await fetchWithCSRF(`${API_URL}/api/organizations/${organizationId}/monthly-tracking`);
+  const response = await fetchWithCSRF(`${API_URL}/organizations/${organizationId}/monthly-tracking`);
 
   if (!response.ok) {
     throw new Error('Failed to fetch monthly tracking');
@@ -158,7 +162,7 @@ export async function getMonthlyTracking(organizationId: string): Promise<Monthl
 }
 
 export async function addBudget(organizationId: string, minutes: number, description: string): Promise<Organization> {
-  const response = await fetchWithCSRF(`${API_URL}/api/organizations/${organizationId}/budget`, {
+  const response = await fetchWithCSRF(`${API_URL}/organizations/${organizationId}/budget`, {
     method: 'POST',
     body: JSON.stringify({ minutes, description }),
   });

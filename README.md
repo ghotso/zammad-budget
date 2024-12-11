@@ -1,155 +1,162 @@
 # Zammad Budget Manager
 
-A web application to manage and track time budgets for Zammad organizations.
+A web application to manage budgets for organizations in Zammad. Track and manage time budgets efficiently with a modern web interface.
 
 ## Features
 
-- Track time budgets per organization
-- Monthly budget tracking
-- Secure authentication
-- Responsive web interface
+- Track time budgets for Zammad organizations
+- View monthly tracked time statistics
+- Add and remove budget entries
+- Secure authentication system
+- Modern, responsive UI
+- SQLite database for easy deployment
+- Docker support for easy installation
 
-## Deployment Instructions
+## Prerequisites
 
-### Using GitHub Container Registry (ghcr.io)
+- Node.js 20 or higher
+- Docker (for containerized deployment)
+- A Zammad instance with API access
 
-The application is available as a Docker container from GitHub Container Registry:
+## Quick Start with Docker
 
+1. Pull the latest image:
 ```bash
-docker pull ghcr.io/your-username/zammad-budget:latest
+docker pull ghcr.io/yourusername/zammad-budget:latest
 ```
 
-### Required Ports
-
-- Web Interface: 80 (HTTP)
-- Backend API: 3000 (Internal)
-
-### Environment Variables
-
-#### Required Variables
-
-```env
-# Security
-JWT_SECRET=your-secure-jwt-secret-here      # Required: Secret key for JWT tokens
-APP_PASSWORD=your-app-password-here         # Required: Password for application login
-
-# Zammad Integration
-ZAMMAD_URL=http://your-zammad-instance      # Required: Your Zammad instance URL
-ZAMMAD_TOKEN=your-zammad-token             # Required: Zammad API token
-```
-
-#### Optional Variables
-
-```env
-# Application Settings
-NODE_ENV=production                        # Optional: Environment (default: production)
-PORT=3000                                 # Optional: Backend port (default: 3000)
-
-# Database Configuration
-DATABASE_URL=file:/data/dev.db            # Optional: SQLite database path (default: /data/dev.db)
-
-# Security Settings
-COOKIE_SECURE=true                        # Optional: Use secure cookies (default: true)
-COOKIE_SAMESITE=Strict                    # Optional: Cookie SameSite policy (default: Strict)
-
-# Logging
-DEBUG_LEVEL=error                         # Optional: Log level (default: error)
-ENABLE_REQUEST_LOGGING=false              # Optional: Enable request logging (default: false)
-
-# Resource Limits
-MEMORY_LIMIT=512M                         # Optional: Container memory limit
-CPU_LIMIT=1.0                            # Optional: Container CPU limit
-```
-
-### Unraid Configuration
-
-1. Add a new Docker container in Unraid
-2. Use the following settings:
-
-   - Repository: `ghcr.io/your-username/zammad-budget`
-   - Network Type: `bridge`
-   - Port Mappings:
-     - `80:80/tcp` (Web Interface)
-   - Environment Variables:
-     - Add all required variables listed above
-   - Volumes:
-     - `/data:/data` (For persistent database storage)
-
-3. Set the following paths in Unraid:
-   - Config Path: `/mnt/user/appdata/zammad-budget`
-   - Data Path: `/mnt/user/appdata/zammad-budget/data`
-
-### Volume Mounts
-
-The following volumes should be mounted for persistent data:
-
-```yaml
-volumes:
-  - /path/to/data:/data              # Database and backups
-```
-
-### Health Checks
-
-The application includes built-in health checks:
-
-- Web Interface: `http://your-server/health`
-- Backend API: `http://your-server/api/health`
-
-### Backup Considerations
-
-The application automatically backs up the SQLite database to `/data/backups`. Ensure this directory is included in your backup strategy.
-
-### Security Notes
-
-1. Always change the default `APP_PASSWORD` and `JWT_SECRET`
-2. Use HTTPS in production
-3. Set secure cookie options in production
-4. Regularly update the container to get security patches
-
-### Troubleshooting
-
-Common issues and solutions:
-
-1. Login not working:
-   - Verify `APP_PASSWORD` is set correctly
-   - Check `JWT_SECRET` is properly configured
-   - Ensure cookies are enabled in your browser
-
-2. Database errors:
-   - Check `/data` volume permissions
-   - Verify SQLite database exists and is writable
-
-3. Network issues:
-   - Verify Zammad instance is accessible
-   - Check CORS settings if using custom domain
-   - Ensure ports are properly mapped
-
-### Support
-
-For issues and feature requests, please use the GitHub issue tracker.
-
-## Development
-
-### Prerequisites
-
-- Node.js 20 or later
-- npm 10 or later
-
-### Local Development
-
+2. Create a `.env` file based on `.env.example`:
 ```bash
-# Install dependencies
+cp .env.example .env
+```
+
+3. Edit the `.env` file with your configuration:
+```env
+ZAMMAD_URL=https://your-zammad-instance.com
+ZAMMAD_TOKEN=your-zammad-token
+APP_PASSWORD=your-secure-password
+JWT_SECRET=your-secure-jwt-secret
+```
+
+4. Run the container:
+```bash
+docker-compose up -d
+```
+
+5. Access the application at http://localhost:8071
+
+## Unraid Installation
+
+1. Add the following template repository to your Unraid server:
+   - https://github.com/yourusername/zammad-budget/tree/main/templates
+
+2. In the Unraid Docker tab, click "Add Container" and search for "Zammad Budget Manager"
+
+3. Configure the following:
+   - Host Port: 8071 (frontend)
+   - Host Port: 3071 (backend API)
+   - ZAMMAD_URL: Your Zammad instance URL
+   - ZAMMAD_TOKEN: Your Zammad API token
+   - APP_PASSWORD: Password for accessing the budget manager
+   - JWT_SECRET: Secret for JWT token generation
+   - Volume mapping: /mnt/user/appdata/zammad-budget:/data
+
+4. Click "Apply" to start the container
+
+## Development Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/zammad-budget.git
+cd zammad-budget
+```
+
+2. Install dependencies:
+```bash
+# Install root dependencies
 npm install
 
-# Start development servers
-npm run dev
+# Install frontend dependencies
+cd frontend && npm install
+
+# Install backend dependencies
+cd ../backend && npm install
 ```
 
-### Building
-
+3. Set up environment variables:
 ```bash
-# Build for production
-npm run build
+cp .env.example .env
+```
 
-# Preview production build
-npm run preview
+4. Start development servers:
+```bash
+# Start backend
+cd backend && npm run dev
+
+# Start frontend (in another terminal)
+cd frontend && npm run dev
+```
+
+5. Access the development server at http://localhost:5173
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| ZAMMAD_URL | Your Zammad instance URL | - |
+| ZAMMAD_TOKEN | Zammad API token | - |
+| APP_PASSWORD | Password for accessing the app | admin |
+| JWT_SECRET | Secret for JWT tokens | - |
+| DATABASE_URL | SQLite database path | file:/data/dev.db |
+| PORT | Backend port | 3000 |
+| NODE_ENV | Environment mode | production |
+
+## Building from Source
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/zammad-budget.git
+cd zammad-budget
+```
+
+2. Build the Docker image:
+```bash
+docker build -t zammad-budget .
+```
+
+3. Run the container:
+```bash
+docker run -d \
+  -p 8071:80 \
+  -p 3071:3000 \
+  -v zammad_budget_data:/data \
+  -e ZAMMAD_URL=https://your-zammad-instance.com \
+  -e ZAMMAD_TOKEN=your-token \
+  -e APP_PASSWORD=your-password \
+  -e JWT_SECRET=your-secret \
+  zammad-budget
+```
+
+## Security Considerations
+
+1. Always use HTTPS in production
+2. Set a strong APP_PASSWORD
+3. Use a secure JWT_SECRET
+4. Keep your Zammad token secure
+5. Regularly update the application
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Support
+
+For issues and feature requests, please use the GitHub issue tracker.
