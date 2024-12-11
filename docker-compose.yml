@@ -2,31 +2,62 @@ version: '3.8'
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/ghotso/zammad-budget:latest
     ports:
-      - "8071:80"  # Frontend
+      - "8071:80"    # Frontend web interface
       - "3071:3000"  # Backend API
     environment:
+      # Core settings
       - NODE_ENV=production
+      - PORT=3000
       - DATABASE_URL=file:/data/dev.db
+
+      # Zammad Integration
       - ZAMMAD_URL=${ZAMMAD_URL}
       - ZAMMAD_TOKEN=${ZAMMAD_TOKEN}
+
+      # Authentication
       - APP_PASSWORD=${APP_PASSWORD:-admin}
       - JWT_SECRET=${JWT_SECRET:-development-secret}
-      - CORS_ALLOWED_ORIGINS=http://localhost:8071,http://localhost:3071
+
+      # CORS Configuration
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:8071,http://localhost:3071}
+
+      # Frontend Configuration
+      - VITE_API_URL=http://localhost:3071/api
+      - VITE_APP_NAME=Zammad Budget Manager
+      - VITE_APP_VERSION=${npm_package_version:-2024.12.11}
+
+      # Security Settings
+      - VITE_AUTH_COOKIE_SECURE=true
+      - VITE_AUTH_COOKIE_SAMESITE=Strict
+      - VITE_CORS_CREDENTIALS=true
+
     volumes:
-      - zammad_budget_data:/data
+      - ${APPDATA_PATH:-./data}:/data:rw  # In Unraid: /mnt/user/appdata/zammad-budget:/data:rw
+    
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    
     restart: unless-stopped
+    
     networks:
       - zammad_budget_net
+    
+    # Unraid labels
+    labels:
+      - "com.github.repo=zammad-budget"
+      - "com.github.author=ghotso"
+      - "com.unraid.container.icon=https://github.com/zammad/zammad/raw/develop/app/assets/images/logo.svg"
+      - "com.unraid.container.name=Zammad Budget Manager"
+      - "com.unraid.container.description=Budget tracking application for Zammad organizations"
+      - "com.unraid.container.webui=http://[IP]:[PORT:8071]"
+      # Documentation for Unraid template
+      - "com.unraid.container.documentation=Frontend Port: 8071 (Web UI)\nBackend Port: 3071 (API)\nVolume: /mnt/user/appdata/zammad-budget:/data"
 
 networks:
   zammad_budget_net:

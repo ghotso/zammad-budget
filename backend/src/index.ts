@@ -329,7 +329,7 @@ api.use('/organizations/*', authMiddleware);
 api.route('/organizations', orgsRouter);
 
 // Mount the API routes under /api
-app.route('/', api);
+app.route('/api', api);
 
 const port = parseInt(process.env.PORT || '3000', 10);
 

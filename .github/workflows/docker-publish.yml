@@ -16,9 +16,54 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  NODE_VERSION: '20'
 
 jobs:
-  build:
+  test-and-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd frontend && npm ci
+          cd ../backend && npm ci
+
+      - name: Run security audit
+        run: |
+          npm audit
+          cd frontend && npm audit
+          cd ../backend && npm audit
+        continue-on-error: true
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  build-and-push:
+    needs: test-and-scan
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -55,6 +100,18 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha,format=long
             type=raw,value=${{ github.event.inputs.build_tag || 'latest' }},enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.title=Zammad Budget Manager
+            org.opencontainers.image.description=Track and manage time budgets for Zammad organizations
+            org.opencontainers.image.vendor=ghotso
+            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.created=${{ github.event.repository.updated_at }}
+            org.opencontainers.image.licenses=MIT
+            com.github.repo=ghotso/zammad-budget
+            com.github.sha=${{ github.sha }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Build and push Docker image
         id: build-and-push
@@ -71,6 +128,8 @@ jobs:
             NODE_ENV=production
             VITE_APP_VERSION=${{ github.ref_name }}
             BUILD_TIMESTAMP=${{ github.event.repository.updated_at }}
+            BUILDPLATFORM=${{ runner.arch }}
+            TARGETPLATFORM=${{ runner.arch }}
 
       - name: Sign the published Docker image
         if: ${{ github.event_name != 'pull_request' }}
@@ -83,8 +142,27 @@ jobs:
         uses: peter-evans/dockerhub-description@v3
         with:
           registry: ghcr.io
-          repository: ${{ github.repository }}
+          repository: ghotso/zammad-budget
           username: ${{ github.actor }}
-          password: ${{ secrets.TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
           readme-filepath: ./README.md
           short-description: "Zammad Budget Manager - Track and manage time budgets for Zammad organizations"
+
+  notify:
+    needs: build-and-push
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check build status
+        if: ${{ needs.build-and-push.result != 'success' }}
+        run: exit 1
+
+      - name: Update status badge
+        uses: schneegans/dynamic-badges-action@v1.6.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: ${{ secrets.GIST_ID }}
+          filename: zammad-budget-build.json
+          label: build
+          message: ${{ needs.build-and-push.result == 'success' && 'passing' || 'failing' }}
+          color: ${{ needs.build-and-push.result == 'success' && 'success' || 'critical' }}
