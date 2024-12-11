@@ -2,34 +2,48 @@
 
 # Base Node.js image for building
 FROM node:20-alpine AS base
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+# Install system dependencies
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    git \
+    nginx
+
 WORKDIR /app
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+
+# Install dependencies stage
+FROM base AS deps
+COPY package.json pnpm-workspace.yaml ./
+COPY frontend/package.json frontend/
+COPY backend/package.json backend/
+
+# Install dependencies without frozen lockfile
+RUN pnpm install --no-frozen-lockfile
 
 # Frontend build stage
 FROM base AS frontend-builder
-WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
-COPY frontend/ .
-RUN pnpm run build
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/frontend/node_modules ./frontend/node_modules
+COPY . .
+RUN cd frontend && pnpm run build
 
 # Backend build stage
 FROM base AS backend-builder
-WORKDIR /app/backend
-COPY backend/package*.json ./
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
-COPY backend/ .
-RUN pnpm run build
-RUN pnpm prune --prod
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/backend/node_modules ./backend/node_modules
+COPY . .
+RUN cd backend && pnpm run build
 
 # Production stage
-FROM node:20-alpine AS runner
+FROM base AS runner
 WORKDIR /app
-
-# Install nginx
-RUN apk add --no-cache nginx
 
 # Copy built frontend
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
@@ -51,9 +65,9 @@ COPY docker-entrypoint.sh /app/
 RUN chmod +x /app/docker-entrypoint.sh
 
 # Set environment variables
-ENV NODE_ENV=production
-ENV PORT=3000
-ENV DATABASE_URL=file:/data/dev.db
+ENV NODE_ENV=production \
+    PORT=3000 \
+    DATABASE_URL=file:/data/dev.db
 
 # Expose ports
 EXPOSE 80 3000

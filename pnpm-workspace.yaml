@@ -1,0 +1,15 @@
+packages:
+  # Include frontend and backend packages
+  - 'frontend'
+  - 'backend'
+  # Exclude build artifacts and other non-source directories
+  - '!**/dist'
+  - '!**/build'
+  - '!**/node_modules'
+  - '!**/.next'
+  - '!**/.nuxt'
+  - '!**/.output'
+  - '!**/.cache'
+  - '!**/coverage'
+  - '!**/test'
+  - '!**/__tests__'
